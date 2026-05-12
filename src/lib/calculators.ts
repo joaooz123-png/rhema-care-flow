@@ -848,18 +848,38 @@ export function sanitizeNote(input: string | null | undefined): string {
    }
  }
  
- export function addToHistory(entry: Omit<HistoryEntry, 'timestamp'>): void {
-   const history = getHistory();
-   const code = entry.patient_code ?? getActivePatientCode();
-   const sanitized = sanitizePatientCode(code);
-   history.unshift({ ...entry, timestamp: Date.now(), patient_code: sanitized || undefined });
-   // Keep only last 200 entries (bumped to support per-patient history)
-   localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 200)));
- }
- 
- export function clearHistory(): void {
-   localStorage.removeItem(HISTORY_KEY);
- }
+  export function addToHistory(entry: Omit<HistoryEntry, 'timestamp'>): void {
+    const history = getHistory();
+    const code = entry.patient_code ?? getActivePatientCode();
+    const sanitizedCode = sanitizePatientCode(code);
+    const sanitizedNote = sanitizeNote(entry.notes);
+    history.unshift({
+      ...entry,
+      timestamp: Date.now(),
+      patient_code: sanitizedCode || undefined,
+      notes: sanitizedNote || undefined,
+    });
+    // Keep only last 200 entries (bumped to support per-patient history)
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 200)));
+  }
+
+  /**
+   * Update the note of a single history entry, identified by timestamp + calculatorId.
+   * Note is sanitized before being stored. Returns true if an entry was updated.
+   */
+  export function updateHistoryNote(timestamp: number, calculatorId: string, note: string): boolean {
+    const history = getHistory();
+    const idx = history.findIndex(e => e.timestamp === timestamp && e.calculatorId === calculatorId);
+    if (idx === -1) return false;
+    const sanitized = sanitizeNote(note);
+    history[idx] = { ...history[idx], notes: sanitized || undefined };
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    return true;
+  }
+
+  export function clearHistory(): void {
+    localStorage.removeItem(HISTORY_KEY);
+  }
 
 // ===== Active patient context (no PII — opaque code only) =====
 const ACTIVE_PATIENT_KEY = 'rheumaflow_active_patient_code';
