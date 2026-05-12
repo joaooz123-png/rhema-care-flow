@@ -492,7 +492,11 @@ import { toast } from 'sonner';
               </div>
             </div>
 
-             {selectedCalc ? (
+             <PatientContextBar onShowHistory={() => setShowHistory(true)} />
+
+             {showHistory && activePatient ? (
+               <PatientHistoryPanel patientCode={activePatient} onBack={() => setShowHistory(false)} />
+             ) : selectedCalc ? (
                <>
                  {/* Back button and header */}
                  <div className="mb-6">
