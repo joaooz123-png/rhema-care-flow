@@ -235,6 +235,22 @@ import { toast } from 'sonner';
         return <FIQRCalculator />;
       case 'fm-combined':
         return <FibromyalgiaCombinedAssessment />;
+      case 'asdas':
+        return <ASDASCalculator />;
+      case 'pmr-2012':
+        return <PMR2012Calculator />;
+      case 'sjogren-2016':
+        return <Sjogren2016Calculator />;
+      case 'acr-eular-gout':
+        return <Gout2015Calculator />;
+      case 'slicc-sle':
+        return <SLICC2012Calculator />;
+      case 'mrss':
+        return <MRSSCalculator />;
+      case 'basfi':
+        return <BASFICalculator />;
+      case 'boolean-remission':
+        return <BooleanRemissionCalculator />;
       default:
         return null;
     }
