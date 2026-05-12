@@ -35,6 +35,7 @@ function formatDate(ts: number) {
 }
 
 export function PatientHistoryPanel({ patientCode, onBack }: Props) {
+  const [version, setVersion] = useState(0);
   const groups: CalculatorGroup[] = useMemo(() => {
     const entries = getHistoryByPatient(patientCode);
     const byCalc = new Map<string, HistoryEntry[]>();
