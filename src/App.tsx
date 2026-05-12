@@ -73,6 +73,7 @@ const ProntuarioIntegrado = lazy(() => import("./pages/ProntuarioIntegrado"));
 const ResearchHub = lazy(() => import("./pages/ResearchHub"));
 const MirrorSettings = lazy(() => import("./pages/MirrorSettings"));
 const LoopDebug = lazy(() => import("./pages/LoopDebug"));
+const GithubSyncStatus = lazy(() => import("./pages/GithubSyncStatus"));
 const queryClient = new QueryClient();
 
  const PageLoader = () => (
@@ -187,6 +188,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
                     <Route path="/research-hub" element={<ProtectedRoute><ResearchHub /></ProtectedRoute>} />
                     <Route path="/settings/mirror" element={<ProtectedRoute><MirrorSettings /></ProtectedRoute>} />
                     <Route path="/debug/loops" element={<LoopDebug />} />
+                    <Route path="/settings/github-sync" element={<ProtectedRoute><GithubSyncStatus /></ProtectedRoute>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
