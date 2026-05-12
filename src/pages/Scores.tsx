@@ -570,13 +570,63 @@ import { toast } from 'sonner';
                    </Card>
                  )}
  
-                 {/* Reference */}
-                 {selectedCalc.reference && (
-                   <p className="text-xs text-muted-foreground mt-4">
-                     Reference: {selectedCalc.reference}
-                   </p>
-                 )}
-               </>
+                  {/* Criteria + Reference Footer */}
+                  {(() => {
+                    const meta = getCalculatorMeta(selectedCalc.id);
+                    const refText = meta?.reference ?? selectedCalc.reference;
+                    const formula = selectedCalc.formula;
+                    if (!meta && !refText && !formula) return null;
+                    return (
+                      <Card className="mt-6 border-dashed bg-muted/30">
+                        <CardContent className="py-4 space-y-2 text-xs">
+                          {formula && (
+                            <p>
+                              <span className="font-semibold text-foreground">Fórmula: </span>
+                              <code className="font-mono">{formula}</code>
+                            </p>
+                          )}
+                          {meta?.criteria && (
+                            <p>
+                              <span className="font-semibold text-foreground">Critérios: </span>
+                              <span className="text-muted-foreground">{meta.criteria}</span>
+                            </p>
+                          )}
+                          {meta?.cutoffs && (
+                            <p>
+                              <span className="font-semibold text-foreground">Pontos de corte: </span>
+                              <span className="text-muted-foreground">{meta.cutoffs}</span>
+                            </p>
+                          )}
+                          {(refText || meta?.guideline) && (
+                            <p className="pt-1 border-t border-border/50">
+                              <span className="font-semibold text-foreground">Referência: </span>
+                              {meta?.referenceUrl ? (
+                                <a
+                                  href={meta.referenceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline"
+                                >
+                                  {refText}
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">{refText}</span>
+                              )}
+                              {meta?.guideline && (
+                                <Badge variant="outline" className="ml-2 text-[10px]">
+                                  {meta.guideline}
+                                </Badge>
+                              )}
+                            </p>
+                          )}
+                          <p className="pt-1 text-[10px] text-muted-foreground italic">
+                            Critérios de classificação ≠ diagnóstico. Ferramenta de apoio à decisão clínica.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+                </>
              ) : (
                /* Welcome / Overview */
                <div className="space-y-6">
