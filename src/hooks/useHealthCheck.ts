@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
 import { invokeEdgeFn } from '@/lib/invokeEdgeFn';
 
+interface ProviderCheck {
+  configured: boolean;
+  ok: boolean;
+  message: string;
+}
+
 export interface HealthCheckData {
   status: 'healthy' | 'unhealthy' | 'degraded';
+  activeProvider: 'anthropic' | 'openai' | 'gemini' | null;
+  fallbackAvailable: boolean;
   checks: {
-    anthropic: {
-      ok: boolean;
-      configured: boolean;
-      message: string;
-    };
+    anthropic: ProviderCheck;
+    openai: ProviderCheck;
+    gemini: ProviderCheck;
     timestamp: string;
   };
 }
@@ -24,41 +30,30 @@ export function useHealthCheck() {
     async function check() {
       setLoading(true);
       setError(null);
-
       const { data: result, error: fnError } = await invokeEdgeFn<HealthCheckData>('health-check', {});
-
       if (cancelled) return;
-
       if (fnError) {
         setError(fnError);
         setData(null);
       } else {
         setData(result);
-        setError(null);
       }
-
       setLoading(false);
     }
 
     check();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const isUnhealthy = data?.status === 'unhealthy';
-  const isDegraded = data?.status === 'degraded';
-  const anthropicMissing = !data?.checks.anthropic.configured;
-  const anthropicInvalid = data?.checks.anthropic.configured && !data?.checks.anthropic.ok;
-
   return {
     data,
     loading,
     error,
-    isUnhealthy,
-    isDegraded,
-    anthropicMissing,
-    anthropicInvalid,
+    isUnhealthy: data?.status === 'unhealthy',
+    isDegraded: data?.status === 'degraded',
+    activeProvider: data?.activeProvider ?? null,
+    fallbackAvailable: data?.fallbackAvailable ?? false,
   };
 }
