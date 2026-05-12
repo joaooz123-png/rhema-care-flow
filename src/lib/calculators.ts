@@ -274,15 +274,16 @@
      diseases: ['fm'],
      implemented: true,
    },
-   {
-     id: 'acr-eular-gout',
-     name: 'ACR/EULAR 2015 Gout Criteria',
-     shortName: 'Gout',
-     description: 'Classification criteria for gout',
-     category: 'classification',
-     diseases: ['gout'],
-     implemented: false,
-   },
+    {
+      id: 'acr-eular-gout',
+      name: 'ACR/EULAR 2015 Gout Criteria',
+      shortName: 'Gout',
+      description: 'Critérios de classificação para gota (entry + ≥8 pts ou cristais)',
+      category: 'classification',
+      diseases: ['gout'],
+      reference: 'Neogi T et al. 2015',
+      implemented: true,
+    },
    
    // Functional Assessment
    {
