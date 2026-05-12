@@ -78,6 +78,11 @@ import { SLICC2012Calculator } from '@/components/scores/SLICC2012Calculator';
 import { MRSSCalculator } from '@/components/scores/MRSSCalculator';
 import { BASFICalculator } from '@/components/scores/BASFICalculator';
 import { BooleanRemissionCalculator } from '@/components/scores/BooleanRemissionCalculator';
+import { CKDEPI2021Calculator } from '@/components/scores/CKDEPI2021Calculator';
+import { WellsCalculator } from '@/components/scores/WellsCalculator';
+import { CentorMcIsaacCalculator } from '@/components/scores/CentorMcIsaacCalculator';
+import { APACHEIICalculator } from '@/components/scores/APACHEIICalculator';
+import { ABCGIBleedCalculator } from '@/components/scores/ABCGIBleedCalculator';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
