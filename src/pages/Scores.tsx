@@ -70,6 +70,14 @@ import { AmniotiFluidCalculator } from '@/components/scores/AmniotiFluidCalculat
 import { FibromyalgiaCalculator } from '@/components/scores/FibromyalgiaCalculator';
 import { FIQRCalculator } from '@/components/scores/FIQRCalculator';
 import { FibromyalgiaCombinedAssessment } from '@/components/scores/FibromyalgiaCombinedAssessment';
+import { ASDASCalculator } from '@/components/scores/ASDASCalculator';
+import { PMR2012Calculator } from '@/components/scores/PMR2012Calculator';
+import { Sjogren2016Calculator } from '@/components/scores/Sjogren2016Calculator';
+import { Gout2015Calculator } from '@/components/scores/Gout2015Calculator';
+import { SLICC2012Calculator } from '@/components/scores/SLICC2012Calculator';
+import { MRSSCalculator } from '@/components/scores/MRSSCalculator';
+import { BASFICalculator } from '@/components/scores/BASFICalculator';
+import { BooleanRemissionCalculator } from '@/components/scores/BooleanRemissionCalculator';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
