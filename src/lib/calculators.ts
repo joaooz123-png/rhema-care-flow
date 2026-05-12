@@ -808,13 +808,36 @@ const WAVE2_CALCULATORS: Calculator[] = [
  // History management
  const HISTORY_KEY = 'rheumaflow_calculator_history';
  
- export interface HistoryEntry {
-   calculatorId: string;
-   timestamp: number;
-   score: number;
-   inputs: Record<string, number | string>;
-   patient_code?: string;
- }
+export interface HistoryEntry {
+  calculatorId: string;
+  timestamp: number;
+  score: number;
+  inputs: Record<string, number | string>;
+  patient_code?: string;
+  /** Free-text clinical context, sanitized to remove PII. Max 280 chars. */
+  notes?: string;
+}
+
+/**
+ * Sanitize a free-text clinical note to remove direct identifiers.
+ * Strips: emails, phone-like sequences, long digit runs (CPF/RG/MRN), URLs.
+ * Caps length at 280 characters.
+ */
+export function sanitizeNote(input: string | null | undefined): string {
+  if (!input) return '';
+  let s = String(input);
+  // Emails
+  s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email removido]');
+  // URLs
+  s = s.replace(/https?:\/\/\S+/gi, '[link removido]');
+  // CPF-like 000.000.000-00 / 00000000000
+  s = s.replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, '[doc removido]');
+  // Long digit runs (≥7) — phones, MRN, SUS card
+  s = s.replace(/\b\d[\d\s().-]{6,}\d\b/g, '[número removido]');
+  // Collapse whitespace
+  s = s.replace(/\s+/g, ' ').trim();
+  return s.slice(0, 280);
+}
  
  export function getHistory(): HistoryEntry[] {
    try {
