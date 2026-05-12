@@ -808,13 +808,36 @@ const WAVE2_CALCULATORS: Calculator[] = [
  // History management
  const HISTORY_KEY = 'rheumaflow_calculator_history';
  
- export interface HistoryEntry {
-   calculatorId: string;
-   timestamp: number;
-   score: number;
-   inputs: Record<string, number | string>;
-   patient_code?: string;
- }
+export interface HistoryEntry {
+  calculatorId: string;
+  timestamp: number;
+  score: number;
+  inputs: Record<string, number | string>;
+  patient_code?: string;
+  /** Free-text clinical context, sanitized to remove PII. Max 280 chars. */
+  notes?: string;
+}
+
+/**
+ * Sanitize a free-text clinical note to remove direct identifiers.
+ * Strips: emails, phone-like sequences, long digit runs (CPF/RG/MRN), URLs.
+ * Caps length at 280 characters.
+ */
+export function sanitizeNote(input: string | null | undefined): string {
+  if (!input) return '';
+  let s = String(input);
+  // Emails
+  s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email removido]');
+  // URLs
+  s = s.replace(/https?:\/\/\S+/gi, '[link removido]');
+  // CPF-like 000.000.000-00 / 00000000000
+  s = s.replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, '[doc removido]');
+  // Long digit runs (≥7) — phones, MRN, SUS card
+  s = s.replace(/\b\d[\d\s().-]{6,}\d\b/g, '[número removido]');
+  // Collapse whitespace
+  s = s.replace(/\s+/g, ' ').trim();
+  return s.slice(0, 280);
+}
  
  export function getHistory(): HistoryEntry[] {
    try {
@@ -825,18 +848,38 @@ const WAVE2_CALCULATORS: Calculator[] = [
    }
  }
  
- export function addToHistory(entry: Omit<HistoryEntry, 'timestamp'>): void {
-   const history = getHistory();
-   const code = entry.patient_code ?? getActivePatientCode();
-   const sanitized = sanitizePatientCode(code);
-   history.unshift({ ...entry, timestamp: Date.now(), patient_code: sanitized || undefined });
-   // Keep only last 200 entries (bumped to support per-patient history)
-   localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 200)));
- }
- 
- export function clearHistory(): void {
-   localStorage.removeItem(HISTORY_KEY);
- }
+  export function addToHistory(entry: Omit<HistoryEntry, 'timestamp'>): void {
+    const history = getHistory();
+    const code = entry.patient_code ?? getActivePatientCode();
+    const sanitizedCode = sanitizePatientCode(code);
+    const sanitizedNote = sanitizeNote(entry.notes);
+    history.unshift({
+      ...entry,
+      timestamp: Date.now(),
+      patient_code: sanitizedCode || undefined,
+      notes: sanitizedNote || undefined,
+    });
+    // Keep only last 200 entries (bumped to support per-patient history)
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 200)));
+  }
+
+  /**
+   * Update the note of a single history entry, identified by timestamp + calculatorId.
+   * Note is sanitized before being stored. Returns true if an entry was updated.
+   */
+  export function updateHistoryNote(timestamp: number, calculatorId: string, note: string): boolean {
+    const history = getHistory();
+    const idx = history.findIndex(e => e.timestamp === timestamp && e.calculatorId === calculatorId);
+    if (idx === -1) return false;
+    const sanitized = sanitizeNote(note);
+    history[idx] = { ...history[idx], notes: sanitized || undefined };
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    return true;
+  }
+
+  export function clearHistory(): void {
+    localStorage.removeItem(HISTORY_KEY);
+  }
 
 // ===== Active patient context (no PII — opaque code only) =====
 const ACTIVE_PATIENT_KEY = 'rheumaflow_active_patient_code';

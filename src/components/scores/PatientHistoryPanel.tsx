@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Trash2, History, ArrowLeft, TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Trash2, History, ArrowLeft, TrendingUp, TrendingDown, Minus, Info, Pencil, Check, X, MessageSquare } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { CALCULATORS, getHistoryByPatient, clearPatientHistory, type HistoryEntry } from '@/lib/calculators';
+import { CALCULATORS, getHistoryByPatient, clearPatientHistory, updateHistoryNote, sanitizeNote, type HistoryEntry } from '@/lib/calculators';
 import { toast } from 'sonner';
 
 interface Props {
@@ -34,6 +35,7 @@ function formatDate(ts: number) {
 }
 
 export function PatientHistoryPanel({ patientCode, onBack }: Props) {
+  const [version, setVersion] = useState(0);
   const groups: CalculatorGroup[] = useMemo(() => {
     const entries = getHistoryByPatient(patientCode);
     const byCalc = new Map<string, HistoryEntry[]>();
@@ -59,7 +61,8 @@ export function PatientHistoryPanel({ patientCode, onBack }: Props) {
         earliest,
       };
     }).sort((a, b) => b.latest.timestamp - a.latest.timestamp);
-  }, [patientCode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientCode, version]);
 
   const handleClear = () => {
     if (!confirm(`Apagar todo o histórico do paciente ${patientCode}? Esta ação não pode ser desfeita.`)) return;
@@ -159,15 +162,14 @@ export function PatientHistoryPanel({ patientCode, onBack }: Props) {
                   </div>
                 )}
 
-                <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                   {[...g.entries].reverse().map((e, i) => (
-                    <div key={`${e.timestamp}-${i}`} className="flex items-center justify-between gap-3 text-sm p-2 rounded hover:bg-muted/40 border border-transparent hover:border-border">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-xs text-muted-foreground font-mono shrink-0">{formatTime(e.timestamp)}</span>
-                        {i === 0 && <Badge variant="secondary" className="text-[10px]">mais recente</Badge>}
-                      </div>
-                      <span className="font-bold text-primary">{e.score}</span>
-                    </div>
+                    <EntryRow
+                      key={`${e.timestamp}-${i}`}
+                      entry={e}
+                      isLatest={i === 0}
+                      onSaved={() => setVersion(v => v + 1)}
+                    />
                   ))}
                 </div>
               </CardContent>
@@ -175,6 +177,106 @@ export function PatientHistoryPanel({ patientCode, onBack }: Props) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+interface EntryRowProps {
+  entry: HistoryEntry;
+  isLatest: boolean;
+  onSaved: () => void;
+}
+
+function EntryRow({ entry, isLatest, onSaved }: EntryRowProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(entry.notes ?? '');
+  const sanitizedPreview = sanitizeNote(draft);
+  const changed = sanitizedPreview !== (entry.notes ?? '');
+
+  const handleSave = () => {
+    const ok = updateHistoryNote(entry.timestamp, entry.calculatorId, draft);
+    if (!ok) {
+      toast.error('Não foi possível salvar a observação');
+      return;
+    }
+    if (sanitizedPreview !== draft.trim()) {
+      toast.info('Observação salva (PII removida automaticamente)');
+    } else {
+      toast.success('Observação salva');
+    }
+    setDraft(sanitizedPreview);
+    setEditing(false);
+    onSaved();
+  };
+
+  const handleCancel = () => {
+    setDraft(entry.notes ?? '');
+    setEditing(false);
+  };
+
+  return (
+    <div className="p-2 rounded border border-transparent hover:border-border hover:bg-muted/40 space-y-1.5">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-muted-foreground font-mono shrink-0">{formatTime(entry.timestamp)}</span>
+          {isLatest && <Badge variant="secondary" className="text-[10px]">mais recente</Badge>}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-primary">{entry.score}</span>
+          {!editing && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setEditing(true)}
+              aria-label="Editar observação"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {editing ? (
+        <div className="space-y-1.5">
+          <Textarea
+            value={draft}
+            onChange={(ev) => setDraft(ev.target.value.slice(0, 280))}
+            placeholder="Contexto clínico resumido (sem nomes, e-mails, telefones, prontuários...)"
+            className="text-xs min-h-[60px]"
+            autoFocus
+          />
+          <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+            <span>{draft.length}/280 • PII será removida automaticamente</span>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={handleCancel}
+              >
+                <X className="h-3 w-3 mr-1" />Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={handleSave}
+                disabled={!changed && !!entry.notes === !!draft.trim()}
+              >
+                <Check className="h-3 w-3 mr-1" />Salvar
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : entry.notes ? (
+        <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+          <MessageSquare className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
+          <span className="break-words">{entry.notes}</span>
+        </p>
+      ) : null}
     </div>
   );
 }
