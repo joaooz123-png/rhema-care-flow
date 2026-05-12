@@ -256,6 +256,16 @@ import { toast } from 'sonner';
         return <BASFICalculator />;
       case 'boolean-remission':
         return <BooleanRemissionCalculator />;
+      case 'ckd-epi-2021':
+        return <CKDEPI2021Calculator />;
+      case 'wells':
+        return <WellsCalculator />;
+      case 'centor-mcisaac':
+        return <CentorMcIsaacCalculator />;
+      case 'apache-ii':
+        return <APACHEIICalculator />;
+      case 'abc-gi-bleed':
+        return <ABCGIBleedCalculator />;
       default:
         return null;
     }
