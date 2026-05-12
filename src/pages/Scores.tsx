@@ -111,10 +111,19 @@ import { toast } from 'sonner';
    const [historyCount, setHistoryCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchParams] = useSearchParams();
+  const [showHistory, setShowHistory] = useState(false);
+  const [activePatient, setActivePatient] = useState('');
 
   useEffect(() => {
     setFavorites(getFavorites());
     setHistoryCount(getHistory().length);
+    setActivePatient(getActivePatientCode());
+    // Poll for patient code changes (set via PatientContextBar in same page)
+    const interval = setInterval(() => {
+      setActivePatient(getActivePatientCode());
+      setHistoryCount(getHistory().length);
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Deep-link: open a specific calculator from query, e.g. /scores?calc=bishop
