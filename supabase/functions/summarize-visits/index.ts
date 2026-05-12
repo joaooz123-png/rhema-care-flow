@@ -127,11 +127,6 @@
  
      const { visits, patientCode, diagnosisTags } = validationResult.data;
  
-     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-     if (!LOVABLE_API_KEY) {
-       throw new Error("LOVABLE_API_KEY is not configured");
-     }
- 
      const visitsSummary = visits.map((v) => {
        const parts = [`Date: ${v.visit_date}`];
        if (v.disease_activity && Object.keys(v.disease_activity).length > 0) {
