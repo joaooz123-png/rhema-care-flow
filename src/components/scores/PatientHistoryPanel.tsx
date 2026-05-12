@@ -180,3 +180,103 @@ export function PatientHistoryPanel({ patientCode, onBack }: Props) {
     </div>
   );
 }
+
+interface EntryRowProps {
+  entry: HistoryEntry;
+  isLatest: boolean;
+  onSaved: () => void;
+}
+
+function EntryRow({ entry, isLatest, onSaved }: EntryRowProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(entry.notes ?? '');
+  const sanitizedPreview = sanitizeNote(draft);
+  const changed = sanitizedPreview !== (entry.notes ?? '');
+
+  const handleSave = () => {
+    const ok = updateHistoryNote(entry.timestamp, entry.calculatorId, draft);
+    if (!ok) {
+      toast.error('Não foi possível salvar a observação');
+      return;
+    }
+    if (sanitizedPreview !== draft.trim()) {
+      toast.info('Observação salva (PII removida automaticamente)');
+    } else {
+      toast.success('Observação salva');
+    }
+    setDraft(sanitizedPreview);
+    setEditing(false);
+    onSaved();
+  };
+
+  const handleCancel = () => {
+    setDraft(entry.notes ?? '');
+    setEditing(false);
+  };
+
+  return (
+    <div className="p-2 rounded border border-transparent hover:border-border hover:bg-muted/40 space-y-1.5">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-muted-foreground font-mono shrink-0">{formatTime(entry.timestamp)}</span>
+          {isLatest && <Badge variant="secondary" className="text-[10px]">mais recente</Badge>}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-primary">{entry.score}</span>
+          {!editing && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setEditing(true)}
+              aria-label="Editar observação"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {editing ? (
+        <div className="space-y-1.5">
+          <Textarea
+            value={draft}
+            onChange={(ev) => setDraft(ev.target.value.slice(0, 280))}
+            placeholder="Contexto clínico resumido (sem nomes, e-mails, telefones, prontuários...)"
+            className="text-xs min-h-[60px]"
+            autoFocus
+          />
+          <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+            <span>{draft.length}/280 • PII será removida automaticamente</span>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={handleCancel}
+              >
+                <X className="h-3 w-3 mr-1" />Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={handleSave}
+                disabled={!changed && !!entry.notes === !!draft.trim()}
+              >
+                <Check className="h-3 w-3 mr-1" />Salvar
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : entry.notes ? (
+        <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+          <MessageSquare className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
+          <span className="break-words">{entry.notes}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
