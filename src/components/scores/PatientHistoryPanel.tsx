@@ -105,6 +105,7 @@ export function PatientHistoryPanel({ patientCode, onBack }: Props) {
         </Alert>
       ) : (
         <div className="space-y-4">
+          <PeriodComparisonPanel patientCode={patientCode} />
           {groups.map(g => (
             <Card key={g.calculatorId}>
               <CardHeader className="pb-3">
