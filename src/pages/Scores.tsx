@@ -209,6 +209,7 @@ import { toast } from 'sonner';
       case 'bishop-score':
         return <BishopScoreCalculator />;
       case 'gestational-age':
+      case 'gestational-age-dum':
         return <GestationalAgeCalculator />;
       case 'preeclampsia-risk':
         return <PreeclampsiaRiskCalculator />;
