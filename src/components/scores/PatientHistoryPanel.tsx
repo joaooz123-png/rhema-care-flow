@@ -61,7 +61,8 @@ export function PatientHistoryPanel({ patientCode, onBack }: Props) {
         earliest,
       };
     }).sort((a, b) => b.latest.timestamp - a.latest.timestamp);
-  }, [patientCode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientCode, version]);
 
   const handleClear = () => {
     if (!confirm(`Apagar todo o histórico do paciente ${patientCode}? Esta ação não pode ser desfeita.`)) return;
