@@ -88,6 +88,9 @@ import { ESSDAICalculator } from '@/components/scores/ESSDAICalculator';
 import { HAQDICalculator } from '@/components/scores/HAQDICalculator';
 import { RAPID3Calculator } from '@/components/scores/RAPID3Calculator';
 import { BASMICalculator } from '@/components/scores/BASMICalculator';
+import { PatientContextBar } from '@/components/scores/PatientContextBar';
+import { PatientHistoryPanel } from '@/components/scores/PatientHistoryPanel';
+import { getActivePatientCode } from '@/lib/calculators';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
