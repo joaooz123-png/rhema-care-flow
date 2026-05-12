@@ -813,6 +813,7 @@ const WAVE2_CALCULATORS: Calculator[] = [
    timestamp: number;
    score: number;
    inputs: Record<string, number | string>;
+   patient_code?: string;
  }
  
  export function getHistory(): HistoryEntry[] {
@@ -826,11 +827,66 @@ const WAVE2_CALCULATORS: Calculator[] = [
  
  export function addToHistory(entry: Omit<HistoryEntry, 'timestamp'>): void {
    const history = getHistory();
-   history.unshift({ ...entry, timestamp: Date.now() });
-   // Keep only last 50 entries
-   localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
+   const code = entry.patient_code ?? getActivePatientCode();
+   const sanitized = sanitizePatientCode(code);
+   history.unshift({ ...entry, timestamp: Date.now(), patient_code: sanitized || undefined });
+   // Keep only last 200 entries (bumped to support per-patient history)
+   localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 200)));
  }
  
  export function clearHistory(): void {
    localStorage.removeItem(HISTORY_KEY);
  }
+
+// ===== Active patient context (no PII — opaque code only) =====
+const ACTIVE_PATIENT_KEY = 'rheumaflow_active_patient_code';
+
+/**
+ * Sanitize a patient code: only A-Z, 0-9 and dashes, length 2–32.
+ * Strips lowercase + spaces + special characters to enforce a de-identified opaque code.
+ */
+export function sanitizePatientCode(input: string | null | undefined): string {
+  if (!input) return '';
+  const cleaned = input.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
+  if (cleaned.length < 2) return '';
+  return cleaned;
+}
+
+export function getActivePatientCode(): string {
+  try {
+    return sanitizePatientCode(localStorage.getItem(ACTIVE_PATIENT_KEY));
+  } catch {
+    return '';
+  }
+}
+
+export function setActivePatientCode(code: string | null): string {
+  const sanitized = sanitizePatientCode(code);
+  if (!sanitized) {
+    localStorage.removeItem(ACTIVE_PATIENT_KEY);
+    return '';
+  }
+  localStorage.setItem(ACTIVE_PATIENT_KEY, sanitized);
+  return sanitized;
+}
+
+export function getHistoryByPatient(code: string): HistoryEntry[] {
+  const sanitized = sanitizePatientCode(code);
+  if (!sanitized) return [];
+  return getHistory().filter(e => e.patient_code === sanitized);
+}
+
+export function getPatientCodes(): string[] {
+  const codes = new Set<string>();
+  for (const e of getHistory()) {
+    if (e.patient_code) codes.add(e.patient_code);
+  }
+  return Array.from(codes).sort();
+}
+
+export function clearPatientHistory(code: string): void {
+  const sanitized = sanitizePatientCode(code);
+  if (!sanitized) return;
+  const remaining = getHistory().filter(e => e.patient_code !== sanitized);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(remaining));
+}
