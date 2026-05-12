@@ -271,6 +271,16 @@ import { toast } from 'sonner';
         return <APACHEIICalculator />;
       case 'abc-gi-bleed':
         return <ABCGIBleedCalculator />;
+      case 'eular-acr-sle':
+        return <EULARACR2019SLECalculator />;
+      case 'essdai':
+        return <ESSDAICalculator />;
+      case 'haq-di':
+        return <HAQDICalculator />;
+      case 'rapid3':
+        return <RAPID3Calculator />;
+      case 'basmi':
+        return <BASMICalculator />;
       default:
         return null;
     }
