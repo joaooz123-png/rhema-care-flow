@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Trash2, History, ArrowLeft, TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Trash2, History, ArrowLeft, TrendingUp, TrendingDown, Minus, Info, Pencil, Check, X, MessageSquare } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { CALCULATORS, getHistoryByPatient, clearPatientHistory, type HistoryEntry } from '@/lib/calculators';
+import { CALCULATORS, getHistoryByPatient, clearPatientHistory, updateHistoryNote, sanitizeNote, type HistoryEntry } from '@/lib/calculators';
 import { toast } from 'sonner';
 
 interface Props {
