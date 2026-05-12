@@ -21,6 +21,7 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefreshIndicator';
 import { useDailyCompliment } from '@/hooks/useDailyCompliment';
 import { AISiteAgentWidget } from '@/components/ai/AISiteAgentWidget';
+import { HealthCheckBanner } from '@/components/dashboard/HealthCheckBanner';
  import {
    DIAGNOSIS_OPTIONS,
  } from '@/config/clinical';
