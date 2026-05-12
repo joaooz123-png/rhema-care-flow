@@ -100,17 +100,10 @@ Respond in JSON:
   "reasoning": "explanation"
 }`;
 
-      const aiResponse = await fetch('https://api.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${lovableApiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-pro',
-          messages: [{ role: 'user', content: monitorPrompt }],
-          temperature: 0.2, // Low temperature for consistent monitoring
-        }),
+      const { callChatCompletion } = await import('../_shared/anthropic.ts');
+      const aiResponse = await callChatCompletion({
+        messages: [{ role: 'user', content: monitorPrompt }],
+        temperature: 0.2,
       });
 
       if (!aiResponse.ok) {
