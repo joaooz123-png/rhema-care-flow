@@ -83,6 +83,11 @@ import { WellsCalculator } from '@/components/scores/WellsCalculator';
 import { CentorMcIsaacCalculator } from '@/components/scores/CentorMcIsaacCalculator';
 import { APACHEIICalculator } from '@/components/scores/APACHEIICalculator';
 import { ABCGIBleedCalculator } from '@/components/scores/ABCGIBleedCalculator';
+import { EULARACR2019SLECalculator } from '@/components/scores/EULARACR2019SLECalculator';
+import { ESSDAICalculator } from '@/components/scores/ESSDAICalculator';
+import { HAQDICalculator } from '@/components/scores/HAQDICalculator';
+import { RAPID3Calculator } from '@/components/scores/RAPID3Calculator';
+import { BASMICalculator } from '@/components/scores/BASMICalculator';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
