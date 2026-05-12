@@ -23,10 +23,10 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY is not configured");
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -64,19 +64,19 @@ serve(async (req) => {
 
     switch (action) {
       case "research":
-        result = await performResearch(topic!, diseaseArea, LOVABLE_API_KEY);
+        result = await performResearch(topic!, diseaseArea, ANTHROPIC_API_KEY);
         break;
       case "generate":
-        result = await generateArticle(topic!, diseaseArea, LOVABLE_API_KEY);
+        result = await generateArticle(topic!, diseaseArea, ANTHROPIC_API_KEY);
         break;
       case "verify":
-        result = await verifyContent(content!, LOVABLE_API_KEY);
+        result = await verifyContent(content!, ANTHROPIC_API_KEY);
         break;
       case "suggest_topics":
-        result = await suggestRelatedTopics(topic!, diseaseArea, LOVABLE_API_KEY);
+        result = await suggestRelatedTopics(topic!, diseaseArea, ANTHROPIC_API_KEY);
         break;
       case "batch_process":
-        result = await batchProcessQueue(supabase, userId, LOVABLE_API_KEY);
+        result = await batchProcessQueue(supabase, userId, ANTHROPIC_API_KEY);
         break;
       default:
         throw new Error("Invalid action");
@@ -91,29 +91,18 @@ serve(async (req) => {
   }
 });
 
-async function callAI(systemPrompt: string, userPrompt: string, apiKey: string): Promise<string> {
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
+async function callAI(systemPrompt: string, userPrompt: string, _apiKey: string): Promise<string> {
+  const { callChatCompletion } = await import("../_shared/anthropic.ts");
+  const response = await callChatCompletion({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
   });
 
   if (!response.ok) {
-    if (response.status === 429) {
-      throw new Error("Rate limit exceeded. Please try again later.");
-    }
-    if (response.status === 402) {
-      throw new Error("Payment required. Please add credits.");
-    }
+    if (response.status === 429) throw new Error("Rate limit exceeded. Please try again later.");
+    if (response.status === 402) throw new Error("Payment required. Please add credits.");
     const text = await response.text();
     throw new Error(`AI request failed: ${text}`);
   }

@@ -58,24 +58,17 @@ interface AgentTask {
   created_at: string;
 }
 
-async function callAI(prompt: string, apiKey: string): Promise<string> {
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "system",
-          content: "You are an AI agent that helps improve a healthcare education platform. Always respond with valid JSON.",
-        },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.3,
-    }),
+async function callAI(prompt: string, _apiKey: string): Promise<string> {
+  const { callChatCompletion } = await import("../_shared/anthropic.ts");
+  const response = await callChatCompletion({
+    messages: [
+      {
+        role: "system",
+        content: "You are an AI agent that helps improve a healthcare education platform. Always respond with valid JSON.",
+      },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0.3,
   });
 
   if (!response.ok) {
@@ -108,9 +101,9 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
-      throw new Error("LOVABLE_API_KEY not configured");
+    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!anthropicKey) {
+      throw new Error("ANTHROPIC_API_KEY not configured");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -130,7 +123,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Running: ${area.name}`);
       
       try {
-        const aiResponse = await callAI(area.prompt, lovableKey);
+        const aiResponse = await callAI(area.prompt, anthropicKey);
         const parsed = parseAIResponse(aiResponse);
         
         results[area.id] = {

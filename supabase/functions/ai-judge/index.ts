@@ -52,7 +52,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -104,17 +104,10 @@ Respond in JSON format:
   "strengths": ["list of strengths"]
 }`;
 
-      const aiResponse = await fetch('https://api.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${lovableApiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-pro',
-          messages: [{ role: 'user', content: analysisPrompt }],
-          temperature: 0.3,
-        }),
+      const { callChatCompletion } = await import('../_shared/anthropic.ts');
+      const aiResponse = await callChatCompletion({
+        messages: [{ role: 'user', content: analysisPrompt }],
+        temperature: 0.3,
       });
 
       if (!aiResponse.ok) {

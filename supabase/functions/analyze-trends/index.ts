@@ -124,12 +124,7 @@
  
      const { scores, patientCode, diagnosisTags } = validationResult.data;
  
-     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-     if (!LOVABLE_API_KEY) {
-       throw new Error("LOVABLE_API_KEY is not configured");
-     }
- 
-     // Build context about the patient's scores
+      // Build context about the patient's scores
      const scoresSummary = scores.map((s) =>
        `${s.score_type}: ${s.calculated_score} on ${s.created_at}`
      ).join("\n");
@@ -159,21 +154,14 @@
  3. Key observations or concerns
  4. Suggested monitoring considerations`;
  
-     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-       method: "POST",
-       headers: {
-         Authorization: `Bearer ${LOVABLE_API_KEY}`,
-         "Content-Type": "application/json",
-       },
-       body: JSON.stringify({
-         model: "google/gemini-3-flash-preview",
-         messages: [
-           { role: "system", content: systemPrompt },
-           { role: "user", content: userPrompt },
-         ],
-         stream: true,
-       }),
-     });
+      const { callChatCompletion } = await import("../_shared/anthropic.ts");
+      const response = await callChatCompletion({
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        stream: true,
+      });
  
      if (!response.ok) {
        if (response.status === 429) {
