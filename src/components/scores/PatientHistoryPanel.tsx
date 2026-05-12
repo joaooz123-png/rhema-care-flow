@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Trash2, History, ArrowLeft, TrendingUp, TrendingDown, Minus, Info, Pencil, Check, X, MessageSquare } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { CALCULATORS, getHistoryByPatient, clearPatientHistory, updateHistoryNote, sanitizeNote, type HistoryEntry } from '@/lib/calculators';
+import { PeriodComparisonPanel } from './PeriodComparisonPanel';
 import { toast } from 'sonner';
 
 interface Props {
@@ -104,6 +105,7 @@ export function PatientHistoryPanel({ patientCode, onBack }: Props) {
         </Alert>
       ) : (
         <div className="space-y-4">
+          <PeriodComparisonPanel patientCode={patientCode} />
           {groups.map(g => (
             <Card key={g.calculatorId}>
               <CardHeader className="pb-3">
