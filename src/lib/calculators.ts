@@ -666,14 +666,14 @@ const WAVE2_CALCULATORS: Calculator[] = [
     implemented: true,
   },
   {
-    id: 'gestational-age',
+    id: 'gestational-age-dum',
     name: 'Idade Gestacional (DUM)',
-    shortName: 'IG',
-    description: 'Cálculo da IG e DPP pela regra de Naegele.',
+    shortName: 'IG (DUM)',
+    description: 'Cálculo da IG e DPP exclusivamente pela regra de Naegele (DUM).',
     category: 'monitoring',
     diseases: ['obgyn'],
     formula: 'Hoje − DUM (em dias) → semanas + dias; DPP = DUM + 280 dias',
-    reference: 'Naegele FK',
+    reference: 'Naegele FK, 1812 / FIGO',
     implemented: true,
   },
   {
