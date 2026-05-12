@@ -14,7 +14,7 @@ interface OAIBody {
   max_tokens?: number;
 }
 
-type ProviderId = "anthropic" | "openai" | "gemini";
+type ProviderId = "anthropic" | "openai" | "gemini" | "deepseek";
 
 interface ProviderResult {
   ok: boolean;
