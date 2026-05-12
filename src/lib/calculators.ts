@@ -755,6 +755,7 @@ const WAVE2_CALCULATORS: Calculator[] = [
     reference: 'Phelan JP et al. J Reprod Med 1987',
     implemented: true,
   },
+  ...WAVE2_CALCULATORS,
 ];
 
 // Favorites management
