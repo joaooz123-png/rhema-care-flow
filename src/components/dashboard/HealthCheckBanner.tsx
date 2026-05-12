@@ -6,6 +6,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   anthropic: 'Anthropic Claude',
   openai: 'OpenAI GPT',
   gemini: 'Google Gemini',
+  deepseek: 'DeepSeek',
 };
 
 export function HealthCheckBanner() {
