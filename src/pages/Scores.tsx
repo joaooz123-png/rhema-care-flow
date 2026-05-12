@@ -88,6 +88,9 @@ import { ESSDAICalculator } from '@/components/scores/ESSDAICalculator';
 import { HAQDICalculator } from '@/components/scores/HAQDICalculator';
 import { RAPID3Calculator } from '@/components/scores/RAPID3Calculator';
 import { BASMICalculator } from '@/components/scores/BASMICalculator';
+import { PatientContextBar } from '@/components/scores/PatientContextBar';
+import { PatientHistoryPanel } from '@/components/scores/PatientHistoryPanel';
+import { getActivePatientCode } from '@/lib/calculators';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -108,10 +111,19 @@ import { toast } from 'sonner';
    const [historyCount, setHistoryCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchParams] = useSearchParams();
+  const [showHistory, setShowHistory] = useState(false);
+  const [activePatient, setActivePatient] = useState('');
 
   useEffect(() => {
     setFavorites(getFavorites());
     setHistoryCount(getHistory().length);
+    setActivePatient(getActivePatientCode());
+    // Poll for patient code changes (set via PatientContextBar in same page)
+    const interval = setInterval(() => {
+      setActivePatient(getActivePatientCode());
+      setHistoryCount(getHistory().length);
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Deep-link: open a specific calculator from query, e.g. /scores?calc=bishop
@@ -480,7 +492,11 @@ import { toast } from 'sonner';
               </div>
             </div>
 
-             {selectedCalc ? (
+             <PatientContextBar onShowHistory={() => setShowHistory(true)} />
+
+             {showHistory && activePatient ? (
+               <PatientHistoryPanel patientCode={activePatient} onBack={() => setShowHistory(false)} />
+             ) : selectedCalc ? (
                <>
                  {/* Back button and header */}
                  <div className="mb-6">
