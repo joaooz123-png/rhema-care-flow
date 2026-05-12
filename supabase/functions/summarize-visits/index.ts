@@ -169,21 +169,14 @@
  3. Current treatment status
  4. Outstanding items or pending follow-ups`;
  
-     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-       method: "POST",
-       headers: {
-         Authorization: `Bearer ${LOVABLE_API_KEY}`,
-         "Content-Type": "application/json",
-       },
-       body: JSON.stringify({
-         model: "google/gemini-3-flash-preview",
-         messages: [
-           { role: "system", content: systemPrompt },
-           { role: "user", content: userPrompt },
-         ],
-         stream: true,
-       }),
-     });
+      const { callChatCompletion } = await import("../_shared/anthropic.ts");
+      const response = await callChatCompletion({
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        stream: true,
+      });
  
      if (!response.ok) {
        if (response.status === 429) {
