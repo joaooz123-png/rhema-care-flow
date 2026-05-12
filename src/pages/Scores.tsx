@@ -25,7 +25,8 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
    type Calculator as CalculatorType,
    type CalculatorCategory,
    type DiseaseType,
- } from '@/lib/calculators';
+  } from '@/lib/calculators';
+import { getCalculatorMeta } from '@/lib/calculatorReferences';
 import { DAS28Calculator } from '@/components/scores/DAS28Calculator';
 import { CDAICalculator } from '@/components/scores/CDAICalculator';
 import { BASDAICalculator } from '@/components/scores/BASDAICalculator';
