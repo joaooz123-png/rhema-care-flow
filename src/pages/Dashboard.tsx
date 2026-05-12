@@ -21,6 +21,7 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefreshIndicator';
 import { useDailyCompliment } from '@/hooks/useDailyCompliment';
 import { AISiteAgentWidget } from '@/components/ai/AISiteAgentWidget';
+import { HealthCheckBanner } from '@/components/dashboard/HealthCheckBanner';
  import {
    DIAGNOSIS_OPTIONS,
  } from '@/config/clinical';
@@ -193,9 +194,12 @@ export default function Dashboard() {
                </Button>
              </Link>
            </div>
-         </div>
- 
-         {/* Quick Patient Search - Clinical Mode */}
+          </div>
+
+          {/* Health Check Alert */}
+          <HealthCheckBanner />
+
+          {/* Quick Patient Search - Clinical Mode */}
          {persona === 'clinical' && (
            <Card className="mb-6 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
              <CardContent className="p-4">
