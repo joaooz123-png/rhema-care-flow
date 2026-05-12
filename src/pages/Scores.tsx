@@ -78,6 +78,11 @@ import { SLICC2012Calculator } from '@/components/scores/SLICC2012Calculator';
 import { MRSSCalculator } from '@/components/scores/MRSSCalculator';
 import { BASFICalculator } from '@/components/scores/BASFICalculator';
 import { BooleanRemissionCalculator } from '@/components/scores/BooleanRemissionCalculator';
+import { CKDEPI2021Calculator } from '@/components/scores/CKDEPI2021Calculator';
+import { WellsCalculator } from '@/components/scores/WellsCalculator';
+import { CentorMcIsaacCalculator } from '@/components/scores/CentorMcIsaacCalculator';
+import { APACHEIICalculator } from '@/components/scores/APACHEIICalculator';
+import { ABCGIBleedCalculator } from '@/components/scores/ABCGIBleedCalculator';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -251,6 +256,16 @@ import { toast } from 'sonner';
         return <BASFICalculator />;
       case 'boolean-remission':
         return <BooleanRemissionCalculator />;
+      case 'ckd-epi-2021':
+        return <CKDEPI2021Calculator />;
+      case 'wells':
+        return <WellsCalculator />;
+      case 'centor-mcisaac':
+        return <CentorMcIsaacCalculator />;
+      case 'apache-ii':
+        return <APACHEIICalculator />;
+      case 'abc-gi-bleed':
+        return <ABCGIBleedCalculator />;
       default:
         return null;
     }

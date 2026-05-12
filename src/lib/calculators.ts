@@ -53,6 +53,60 @@
   obgyn: { label: 'OB/GYN', color: 'bg-pink-100 text-pink-800 border-pink-300' },
   general: { label: 'General', color: 'bg-slate-100 text-slate-700 border-slate-300' },
 };
+
+const WAVE2_CALCULATORS: Calculator[] = [
+  {
+    id: 'ckd-epi-2021',
+    name: 'CKD-EPI 2021 (eGFR sem coeficiente racial)',
+    shortName: 'CKD-EPI 2021',
+    description: 'Taxa de filtração glomerular estimada — equação 2021 sem variável racial.',
+    category: 'monitoring',
+    diseases: ['general'],
+    formula: '142 × min(Scr/κ,1)^α × max(Scr/κ,1)^(-1.200) × 0.9938^idade × (1.012 se ♀)',
+    reference: 'Inker LA et al. NEJM 2021;385:1737-1749',
+    implemented: true,
+  },
+  {
+    id: 'wells',
+    name: 'Wells Score — TVP e EP',
+    shortName: 'Wells',
+    description: 'Probabilidade pré-teste para Trombose Venosa Profunda e Embolia Pulmonar.',
+    category: 'prognosis',
+    diseases: ['general'],
+    reference: 'Wells PS et al. Lancet 1997 / Ann Intern Med 2001',
+    implemented: true,
+  },
+  {
+    id: 'centor-mcisaac',
+    name: 'Centor / McIsaac (Faringite)',
+    shortName: 'Centor/McIsaac',
+    description: 'Probabilidade de Streptococcus β-hemolítico A em faringoamigdalite.',
+    category: 'classification',
+    diseases: ['general'],
+    reference: 'Centor RM 1981 / McIsaac WJ 1998',
+    implemented: true,
+  },
+  {
+    id: 'apache-ii',
+    name: 'APACHE II',
+    shortName: 'APACHE II',
+    description: 'Acute Physiology and Chronic Health Evaluation II — gravidade em UTI.',
+    category: 'prognosis',
+    diseases: ['general'],
+    reference: 'Knaus WA et al. Crit Care Med 1985;13:818-29',
+    implemented: true,
+  },
+  {
+    id: 'abc-gi-bleed',
+    name: 'ABC Score — Sangramento GI',
+    shortName: 'ABC GI',
+    description: 'Predição de mortalidade em 30 dias para sangramento gastrointestinal alto e baixo.',
+    category: 'prognosis',
+    diseases: ['general'],
+    reference: 'Laursen SB et al. Gut 2021;70:707-716',
+    implemented: true,
+  },
+];
  
  export const CALCULATORS: Calculator[] = [
    // Disease Activity Scores
@@ -701,6 +755,7 @@
     reference: 'Phelan JP et al. J Reprod Med 1987',
     implemented: true,
   },
+  ...WAVE2_CALCULATORS,
 ];
 
 // Favorites management
