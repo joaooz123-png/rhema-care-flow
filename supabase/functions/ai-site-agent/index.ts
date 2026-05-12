@@ -101,9 +101,9 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
-      throw new Error("LOVABLE_API_KEY not configured");
+    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!anthropicKey) {
+      throw new Error("ANTHROPIC_API_KEY not configured");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -123,7 +123,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Running: ${area.name}`);
       
       try {
-        const aiResponse = await callAI(area.prompt, lovableKey);
+        const aiResponse = await callAI(area.prompt, anthropicKey);
         const parsed = parseAIResponse(aiResponse);
         
         results[area.id] = {
