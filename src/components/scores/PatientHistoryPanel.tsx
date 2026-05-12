@@ -162,15 +162,14 @@ export function PatientHistoryPanel({ patientCode, onBack }: Props) {
                   </div>
                 )}
 
-                <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                   {[...g.entries].reverse().map((e, i) => (
-                    <div key={`${e.timestamp}-${i}`} className="flex items-center justify-between gap-3 text-sm p-2 rounded hover:bg-muted/40 border border-transparent hover:border-border">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-xs text-muted-foreground font-mono shrink-0">{formatTime(e.timestamp)}</span>
-                        {i === 0 && <Badge variant="secondary" className="text-[10px]">mais recente</Badge>}
-                      </div>
-                      <span className="font-bold text-primary">{e.score}</span>
-                    </div>
+                    <EntryRow
+                      key={`${e.timestamp}-${i}`}
+                      entry={e}
+                      isLatest={i === 0}
+                      onSaved={() => setVersion(v => v + 1)}
+                    />
                   ))}
                 </div>
               </CardContent>
