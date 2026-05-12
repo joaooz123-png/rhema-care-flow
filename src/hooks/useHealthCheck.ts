@@ -9,12 +9,13 @@ interface ProviderCheck {
 
 export interface HealthCheckData {
   status: 'healthy' | 'unhealthy' | 'degraded';
-  activeProvider: 'anthropic' | 'openai' | 'gemini' | null;
+  activeProvider: 'anthropic' | 'openai' | 'gemini' | 'deepseek' | null;
   fallbackAvailable: boolean;
   checks: {
     anthropic: ProviderCheck;
     openai: ProviderCheck;
     gemini: ProviderCheck;
+    deepseek: ProviderCheck;
     timestamp: string;
   };
 }

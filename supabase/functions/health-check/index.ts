@@ -71,17 +71,35 @@ async function checkGemini(): Promise<ProviderCheck> {
   }
 }
 
+async function checkDeepSeek(): Promise<ProviderCheck> {
+  const key = Deno.env.get("DEEPSEEK_API_KEY");
+  if (!key) return { configured: false, ok: false, message: "DEEPSEEK_API_KEY not configured" };
+  try {
+    const res = await fetch("https://api.deepseek.com/v1/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (res.ok) return { configured: true, ok: true, message: "OK" };
+    if (res.status === 401) return { configured: true, ok: false, message: "Unauthorized (invalid key)" };
+    if (res.status === 402) return { configured: true, ok: false, message: "Out of credits" };
+    if (res.status === 429) return { configured: true, ok: false, message: "Rate limited" };
+    return { configured: true, ok: false, message: `HTTP ${res.status}` };
+  } catch (err) {
+    return { configured: true, ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const [anthropic, openai, gemini] = await Promise.all([
+    const [anthropic, openai, gemini, deepseek] = await Promise.all([
       checkAnthropic(),
       checkOpenAI(),
       checkGemini(),
+      checkDeepSeek(),
     ]);
 
-    const providers = { anthropic, openai, gemini };
+    const providers = { anthropic, openai, gemini, deepseek };
     const healthyCount = Object.values(providers).filter((p) => p.ok).length;
     const configuredCount = Object.values(providers).filter((p) => p.configured).length;
 
@@ -91,7 +109,7 @@ Deno.serve(async (req) => {
     else status = "healthy";
 
     // Active provider order (first healthy one is primary)
-    const order = (Deno.env.get("AI_PROVIDER_ORDER") ?? "anthropic,openai,gemini")
+    const order = (Deno.env.get("AI_PROVIDER_ORDER") ?? "anthropic,openai,deepseek,gemini")
       .split(",")
       .map((s) => s.trim());
     const activeProvider = order.find((id) => (providers as any)[id]?.ok) ?? null;

@@ -14,7 +14,7 @@ interface OAIBody {
   max_tokens?: number;
 }
 
-type ProviderId = "anthropic" | "openai" | "gemini";
+type ProviderId = "anthropic" | "openai" | "gemini" | "deepseek";
 
 interface ProviderResult {
   ok: boolean;
@@ -400,6 +400,84 @@ async function callGemini(body: OAIBody): Promise<ProviderResult> {
   };
 }
 
+// --------------------------- DeepSeek ---------------------------
+const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
+
+function mapDeepSeekModel(openaiModel?: string): string {
+  if (!openaiModel) return "deepseek-chat";
+  const m = openaiModel.toLowerCase();
+  if (m.includes("reason") || m.includes("pro") || m.includes("opus") || m.includes("gpt-5")) {
+    return "deepseek-reasoner";
+  }
+  return "deepseek-chat";
+}
+
+async function callDeepSeek(body: OAIBody): Promise<ProviderResult> {
+  const apiKey = Deno.env.get("DEEPSEEK_API_KEY");
+  if (!apiKey) {
+    return {
+      ok: false,
+      shouldFallback: true,
+      status: 0,
+      response: jsonError("DEEPSEEK_API_KEY not configured", 500),
+      errorText: "no key",
+    };
+  }
+
+  const payload = {
+    model: mapDeepSeekModel(body.model),
+    messages: body.messages,
+    stream: !!body.stream,
+    ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
+    ...(body.max_tokens ? { max_tokens: body.max_tokens } : {}),
+  };
+
+  const upstream = await fetch(DEEPSEEK_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!upstream.ok) {
+    const text = await upstream.text();
+    console.error(`[deepseek] ${upstream.status}:`, text.slice(0, 300));
+    return {
+      ok: false,
+      shouldFallback: shouldTryNext(upstream.status),
+      status: upstream.status,
+      response: jsonError(text || "DeepSeek request failed", upstream.status),
+      errorText: text,
+    };
+  }
+
+  if (!body.stream) {
+    const data = await upstream.json();
+    return {
+      ok: true,
+      shouldFallback: false,
+      status: 200,
+      response: new Response(JSON.stringify({ ...data, _provider: "deepseek" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "X-Ai-Provider": "deepseek" },
+      }),
+    };
+  }
+
+  // DeepSeek already streams in OpenAI SSE format — pass-through
+  return {
+    ok: true,
+    shouldFallback: false,
+    status: 200,
+    response: new Response(upstream.body, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream", "X-Ai-Provider": "deepseek" },
+    }),
+  };
+}
+
 // --------------------------- Router ---------------------------
 function jsonError(text: string, status: number): Response {
   return new Response(JSON.stringify({ error: text }), {
@@ -412,18 +490,20 @@ const PROVIDERS: Record<ProviderId, (body: OAIBody) => Promise<ProviderResult>> 
   anthropic: callAnthropic,
   openai: callOpenAI,
   gemini: callGemini,
+  deepseek: callDeepSeek,
 };
 
 function getProviderOrder(): ProviderId[] {
-  // Allow override via env: AI_PROVIDER_ORDER="openai,anthropic,gemini"
+  // Allow override via env: AI_PROVIDER_ORDER="openai,anthropic,gemini,deepseek"
   const raw = Deno.env.get("AI_PROVIDER_ORDER");
   if (raw) {
     const parsed = raw.split(",").map((s) => s.trim().toLowerCase()).filter(
-      (s): s is ProviderId => s === "anthropic" || s === "openai" || s === "gemini",
+      (s): s is ProviderId =>
+        s === "anthropic" || s === "openai" || s === "gemini" || s === "deepseek",
     );
     if (parsed.length) return parsed;
   }
-  return ["anthropic", "openai", "gemini"];
+  return ["anthropic", "openai", "deepseek", "gemini"];
 }
 
 /**

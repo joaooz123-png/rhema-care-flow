@@ -6,6 +6,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   anthropic: 'Anthropic Claude',
   openai: 'OpenAI GPT',
   gemini: 'Google Gemini',
+  deepseek: 'DeepSeek',
 };
 
 export function HealthCheckBanner() {
@@ -46,8 +47,8 @@ export function HealthCheckBanner() {
               : 'Um ou mais provedores estão indisponíveis. O sistema fez switch automático para o próximo provedor saudável. Recomenda-se restaurar os provedores afetados.'}
           </p>
 
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {(['anthropic', 'openai', 'gemini'] as const).map((id) => {
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {(['anthropic', 'openai', 'deepseek', 'gemini'] as const).map((id) => {
               const p = data.checks[id];
               const isActive = data.activeProvider === id;
               return (
