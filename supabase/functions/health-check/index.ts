@@ -71,6 +71,23 @@ async function checkGemini(): Promise<ProviderCheck> {
   }
 }
 
+async function checkDeepSeek(): Promise<ProviderCheck> {
+  const key = Deno.env.get("DEEPSEEK_API_KEY");
+  if (!key) return { configured: false, ok: false, message: "DEEPSEEK_API_KEY not configured" };
+  try {
+    const res = await fetch("https://api.deepseek.com/v1/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (res.ok) return { configured: true, ok: true, message: "OK" };
+    if (res.status === 401) return { configured: true, ok: false, message: "Unauthorized (invalid key)" };
+    if (res.status === 402) return { configured: true, ok: false, message: "Out of credits" };
+    if (res.status === 429) return { configured: true, ok: false, message: "Rate limited" };
+    return { configured: true, ok: false, message: `HTTP ${res.status}` };
+  } catch (err) {
+    return { configured: true, ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
