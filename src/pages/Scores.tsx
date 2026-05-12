@@ -70,6 +70,14 @@ import { AmniotiFluidCalculator } from '@/components/scores/AmniotiFluidCalculat
 import { FibromyalgiaCalculator } from '@/components/scores/FibromyalgiaCalculator';
 import { FIQRCalculator } from '@/components/scores/FIQRCalculator';
 import { FibromyalgiaCombinedAssessment } from '@/components/scores/FibromyalgiaCombinedAssessment';
+import { ASDASCalculator } from '@/components/scores/ASDASCalculator';
+import { PMR2012Calculator } from '@/components/scores/PMR2012Calculator';
+import { Sjogren2016Calculator } from '@/components/scores/Sjogren2016Calculator';
+import { Gout2015Calculator } from '@/components/scores/Gout2015Calculator';
+import { SLICC2012Calculator } from '@/components/scores/SLICC2012Calculator';
+import { MRSSCalculator } from '@/components/scores/MRSSCalculator';
+import { BASFICalculator } from '@/components/scores/BASFICalculator';
+import { BooleanRemissionCalculator } from '@/components/scores/BooleanRemissionCalculator';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -227,6 +235,22 @@ import { toast } from 'sonner';
         return <FIQRCalculator />;
       case 'fm-combined':
         return <FibromyalgiaCombinedAssessment />;
+      case 'asdas':
+        return <ASDASCalculator />;
+      case 'pmr-2012':
+        return <PMR2012Calculator />;
+      case 'sjogren-2016':
+        return <Sjogren2016Calculator />;
+      case 'acr-eular-gout':
+        return <Gout2015Calculator />;
+      case 'slicc-sle':
+        return <SLICC2012Calculator />;
+      case 'mrss':
+        return <MRSSCalculator />;
+      case 'basfi':
+        return <BASFICalculator />;
+      case 'boolean-remission':
+        return <BooleanRemissionCalculator />;
       default:
         return null;
     }
