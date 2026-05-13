@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, RefreshCw, XCircle, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useHealthCheck } from '@/hooks/useHealthCheck';
+import { useUserRole } from '@/hooks/useUserRole';
 
 const PROVIDER_LABELS: Record<string, string> = {
   anthropic: 'Anthropic Claude',
@@ -11,8 +12,12 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 export function HealthCheckBanner() {
   const { data, loading } = useHealthCheck();
+  const { isAdmin, loading: roleLoading } = useUserRole();
 
-  if (loading || !data) return null;
+  if (loading || roleLoading || !data) return null;
+  // Tabela de status de provedores de IA é informação técnica/diagnóstica:
+  // visível apenas para administradores/desenvolvedores.
+  if (!isAdmin) return null;
   if (data.status === 'healthy' && !data.fallbackAvailable) {
     // Single provider OK, no banner
     return null;

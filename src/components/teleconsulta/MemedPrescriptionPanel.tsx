@@ -15,6 +15,7 @@ import {
 import { useMemedPrescription, type MemedPatient } from '@/hooks/useMemedPrescription';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRole } from '@/hooks/useUserRole';
 import { toast } from 'sonner';
 
 interface MemedPrescriptionPanelProps {
@@ -30,6 +31,7 @@ export function MemedPrescriptionPanel({
   collapsed,
 }: MemedPrescriptionPanelProps) {
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const {
     ready,
     loading,
@@ -138,12 +140,19 @@ export function MemedPrescriptionPanel({
           </div>
         )}
 
-        {/* Erro ao carregar */}
+        {/* Erro ao carregar — detalhe técnico só para admin/dev */}
         {!loading && error && (
-          <div className="flex items-center gap-2 text-xs text-destructive">
-            <AlertCircle className="h-3.5 w-3.5" />
-            {error}
-          </div>
+          isAdmin ? (
+            <div className="flex items-center gap-2 text-xs text-destructive">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {error}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+              <AlertCircle className="h-3.5 w-3.5" />
+              Prescrição digital temporariamente indisponível. Tente novamente em instantes.
+            </div>
+          )
         )}
 
         {/* SDK carregado */}
