@@ -85,27 +85,30 @@ export function useMemedPrescription(): MemedHookReturn {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
 
+          // Caso de sucesso: token automático disponível
           if (!res.error && res.data?.token) {
             const { token, scriptUrl } = res.data as { token: string; scriptUrl: string };
             await loadMemedScript(scriptUrl ?? MEMED_SCRIPT_DEFAULT, token);
-
-            // Aguarda MdHub ficar disponível
             await waitForMdHub();
-
-            // Envia token via comando MdHub (duplo: via script data-token + comando)
             if (window.MdHub) {
               window.MdHub.command.send('plataforma.autenticacao', 'setToken', token);
             }
-
             setTokenAuto(true);
             setReady(true);
             return;
           }
-          // Se a edge function falhou (ex: médico sem CRM), cai no fallback
-          console.warn('[Memed] Edge function não retornou token, aguardando input manual');
+
+          // Caso "configurado=false" — backend Memed indisponível, cai no manual sem erro
+          const scriptUrl =
+            (res.data && (res.data as { scriptUrl?: string }).scriptUrl) ?? MEMED_SCRIPT_DEFAULT;
+          console.warn('[Memed] Sem token automático — fallback manual');
+          await loadMemedScript(scriptUrl);
+          await waitForMdHub();
+          setReady(true);
+          return;
         }
 
-        // 2. Fallback: carrega script sem token (médico vai inserir manualmente)
+        // 2. Sem sessão: carrega script sem token
         await loadMemedScript(MEMED_SCRIPT_DEFAULT);
         await waitForMdHub();
         setReady(true);
