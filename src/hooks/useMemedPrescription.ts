@@ -1,24 +1,47 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+/**
+ * Estrutura do paciente conforme documentação oficial Memed
+ * https://doc.memed.com.br/docs/frontend/comandos-mdhub/set-patient
+ *
+ * Campos obrigatórios pela API: idExterno, nome, cpf, sexo
+ * (No nosso uso clínico, o `nome` é sempre o patient_code — nunca PII real.)
+ */
 export interface MemedPatient {
+  /** Identificador único interno (UUID/hash). NÃO usar PII. */
+  idExterno?: string;
+  /** Nome OU código do paciente (no nosso fluxo: patient_code). */
   nome: string;
+  /** CPF apenas dígitos (obrigatório pela Memed; usar passaporte se ausente). */
+  cpf?: string;
+  /** Aceita: "Masculino" | "Feminino" | "M" | "F" */
+  sexo?: 'Masculino' | 'Feminino' | 'M' | 'F';
+  /** dd/mm/YYYY */
+  data_nascimento?: string;
+  nome_social?: string;
+  telefone?: string;
+  email?: string;
+  /** "branca" | "preta" | "parda" | "amarela" | "indígena" */
+  raca?: 'branca' | 'preta' | 'parda' | 'amarela' | 'indígena';
+  /** Em quilogramas */
+  peso?: number;
+  /** Em metros */
+  altura?: number;
   endereco?: string;
   cidade?: string;
-  telefone?: string;
-  altura?: number;
-  idExterno?: string;
+  nome_mae?: string;
+  dificuldade_locomocao?: boolean;
 }
 
 export interface MemedHookReturn {
   ready: boolean;
   loading: boolean;
   error: string | null;
-  tokenAuto: boolean;           // true = token obtido automaticamente via API
+  tokenAuto: boolean;
   setPatient: (patient: MemedPatient) => void;
   showPrescription: () => void;
   hidePrescription: () => void;
-  /** Fallback manual: define token diretamente (para médicos sem CRM no perfil) */
   setDoctorTokenManual: (token: string) => void;
 }
 
@@ -33,31 +56,74 @@ declare global {
 
 const MEMED_SCRIPT_ID = 'memed-sdk-script';
 
-// Script padrão — será substituído pelo retornado pela edge function quando disponível
+// URL oficial homologação (doc.memed.com.br/docs/primeiros-passos)
 const MEMED_SCRIPT_DEFAULT =
   'https://integrations.memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js';
 
 function loadMemedScript(src: string, token?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const existing = document.getElementById(MEMED_SCRIPT_ID) as HTMLScriptElement | null;
-
-    // Se já carregou com o mesmo src, não recarrega
-    if (existing && existing.src === src) {
+    if (existing && existing.src === src && existing.getAttribute('data-token') === (token ?? null)) {
       resolve();
       return;
     }
-
-    // Remove script anterior se existir (troca de src)
     if (existing) existing.remove();
 
     const script = document.createElement('script');
     script.id = MEMED_SCRIPT_ID;
+    script.type = 'text/javascript';
     script.src = src;
     script.setAttribute('data-color', '#0ea5e9');
     if (token) script.setAttribute('data-token', token);
     script.onload = () => resolve();
     script.onerror = () => reject(new Error('Falha ao carregar SDK Memed'));
     document.head.appendChild(script);
+  });
+}
+
+/**
+ * Aguarda o módulo `plataforma.prescricao` ficar disponível usando o
+ * evento oficial `core:moduleInit` (doc.memed.com.br/docs/primeiros-passos).
+ */
+function waitForPrescricaoModule(timeoutMs = 15000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (err?: Error) => {
+      if (done) return;
+      done = true;
+      err ? reject(err) : resolve();
+    };
+
+    const timer = setTimeout(
+      () => finish(new Error('Timeout aguardando módulo Memed (core:moduleInit)')),
+      timeoutMs,
+    );
+
+    const tryRegister = () => {
+      if (window.MdSinapsePrescricao?.event?.add) {
+        window.MdSinapsePrescricao.event.add('core:moduleInit', (mod: { name?: string }) => {
+          if (mod?.name === 'plataforma.prescricao') {
+            clearTimeout(timer);
+            finish();
+          }
+        });
+        // Caso o módulo já esteja inicializado quando entramos aqui:
+        if (window.MdHub?.module) {
+          clearTimeout(timer);
+          finish();
+        }
+        return true;
+      }
+      return false;
+    };
+
+    if (tryRegister()) return;
+
+    // Polling até MdSinapsePrescricao existir (script ainda baixando)
+    const iv = setInterval(() => {
+      if (tryRegister()) clearInterval(iv);
+    }, 150);
+    setTimeout(() => clearInterval(iv), timeoutMs);
   });
 }
 
@@ -76,41 +142,36 @@ export function useMemedPrescription(): MemedHookReturn {
 
     async function init() {
       try {
-        // 1. Tentar obter token automaticamente via Edge Function
         const { data: sessionData } = await supabase.auth.getSession();
         const accessToken = sessionData?.session?.access_token;
 
+        // 1) Tenta token automático via edge function
         if (accessToken) {
           const res = await supabase.functions.invoke('memed-token', {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
 
-          // Caso de sucesso: token automático disponível
           if (!res.error && res.data?.token) {
             const { token, scriptUrl } = res.data as { token: string; scriptUrl: string };
             await loadMemedScript(scriptUrl ?? MEMED_SCRIPT_DEFAULT, token);
-            await waitForMdHub();
-            if (window.MdHub) {
-              window.MdHub.command.send('plataforma.autenticacao', 'setToken', token);
-            }
+            await waitForPrescricaoModule();
             setTokenAuto(true);
             setReady(true);
             return;
           }
 
-          // Caso "configurado=false" — backend Memed indisponível, cai no manual sem erro
+          // configured:false → fallback manual sem erro
           const scriptUrl =
             (res.data && (res.data as { scriptUrl?: string }).scriptUrl) ?? MEMED_SCRIPT_DEFAULT;
-          console.warn('[Memed] Sem token automático — fallback manual');
           await loadMemedScript(scriptUrl);
-          await waitForMdHub();
+          await waitForPrescricaoModule();
           setReady(true);
           return;
         }
 
-        // 2. Sem sessão: carrega script sem token
+        // 2) Sem sessão: carrega o script puro
         await loadMemedScript(MEMED_SCRIPT_DEFAULT);
-        await waitForMdHub();
+        await waitForPrescricaoModule();
         setReady(true);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -125,41 +186,48 @@ export function useMemedPrescription(): MemedHookReturn {
     init();
   }, []);
 
-  /** Aguarda window.MdHub estar disponível (polling, max 10s) */
-  function waitForMdHub(): Promise<void> {
-    return new Promise((resolve) => {
-      if (window.MdHub) { resolve(); return; }
-      let tries = 0;
-      const iv = setInterval(() => {
-        tries++;
-        if (window.MdHub || tries > 100) {
-          clearInterval(iv);
-          resolve();
-        }
-      }, 100);
-    });
-  }
-
   const setDoctorTokenManual = useCallback((token: string) => {
-    if (!window.MdHub) { console.warn('[Memed] MdHub não inicializado'); return; }
+    if (!window.MdHub) {
+      console.warn('[Memed] MdHub não inicializado');
+      return;
+    }
+    // Comando oficial de autenticação
     window.MdHub.command.send('plataforma.autenticacao', 'setToken', token);
-    setTokenAuto(true); // marca como configurado
+    setTokenAuto(true);
   }, []);
 
   const setPatient = useCallback((patient: MemedPatient) => {
-    if (!window.MdHub) { console.warn('[Memed] MdHub não inicializado'); return; }
-    window.MdHub.command.send('plataforma.prescricao', 'setPatient', {
-      name: patient.nome,
-      address: patient.endereco ?? '',
-      city: patient.cidade ?? '',
-      phone: patient.telefone ?? '',
-      height: patient.altura,
-      externalId: patient.idExterno,
-    });
+    if (!window.MdHub) {
+      console.warn('[Memed] MdHub não inicializado');
+      return;
+    }
+    // Comando oficial: setPaciente (PT-BR) com nomes de campos exatos da doc
+    window.MdHub.command
+      .send('plataforma.prescricao', 'setPaciente', {
+        idExterno: patient.idExterno,
+        nome: patient.nome,
+        cpf: patient.cpf,
+        sexo: patient.sexo,
+        data_nascimento: patient.data_nascimento,
+        nome_social: patient.nome_social,
+        telefone: patient.telefone,
+        email: patient.email,
+        raca: patient.raca,
+        peso: patient.peso,
+        altura: patient.altura,
+        endereco: patient.endereco,
+        cidade: patient.cidade,
+        nome_mae: patient.nome_mae,
+        dificuldade_locomocao: patient.dificuldade_locomocao ?? false,
+      })
+      ?.catch?.((e: unknown) => console.error('[Memed] setPaciente:', e));
   }, []);
 
   const showPrescription = useCallback(() => {
-    if (!window.MdHub) { console.warn('[Memed] MdHub não inicializado'); return; }
+    if (!window.MdHub) {
+      console.warn('[Memed] MdHub não inicializado');
+      return;
+    }
     window.MdHub.module.show('plataforma.prescricao');
   }, []);
 
