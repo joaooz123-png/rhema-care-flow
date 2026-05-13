@@ -43,6 +43,19 @@ serve(async (req) => {
       })
     }
 
+    // Se as credenciais Memed não estão configuradas, devolve 200 com
+    // configured:false em vez de 500 — o cliente cai no fluxo manual sem erro.
+    if (!MEMED_API_KEY || !MEMED_SECRET_KEY) {
+      return new Response(
+        JSON.stringify({
+          configured: false,
+          scriptUrl: MEMED_SCRIPT_URL,
+          message: 'Memed não configurada — usar token manual',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     // Buscar perfil do médico
     const { data: profile } = await supabase
       .from('profiles')
