@@ -128,63 +128,59 @@
        );
      }
  
-     const { messages, model, temperature, max_tokens, stream } = validationResult.data;
- 
-     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-     if (!OPENAI_API_KEY) {
-       throw new Error("OPENAI_API_KEY is not configured");
-     }
- 
-     // Call OpenAI API
-     const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-       method: "POST",
-       headers: {
-         Authorization: `Bearer ${OPENAI_API_KEY}`,
-         "Content-Type": "application/json",
-       },
-       body: JSON.stringify({
-         model,
-         messages,
-         temperature,
-         max_tokens,
-         stream,
-       }),
-     });
- 
-     if (!openaiResponse.ok) {
-       const errorText = await openaiResponse.text();
-       console.error("OpenAI API error:", openaiResponse.status, errorText);
-       
-       if (openaiResponse.status === 429) {
-         return new Response(
-           JSON.stringify({ error: "OpenAI rate limit exceeded. Please try again later." }),
-           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-         );
-       }
-       if (openaiResponse.status === 401) {
-         return new Response(
-           JSON.stringify({ error: "OpenAI API key invalid or expired." }),
-           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-         );
-       }
-       
-       return new Response(
-         JSON.stringify({ error: "OpenAI request failed" }),
-         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-       );
-     }
- 
-     // Return streaming or non-streaming response
-     if (stream) {
-       return new Response(openaiResponse.body, {
-         headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-       });
-     } else {
-       const data = await openaiResponse.json();
-       return new Response(JSON.stringify(data), {
-         headers: { ...corsHeaders, "Content-Type": "application/json" },
-       });
-     }
+      const { messages, model, temperature, max_tokens, stream } = validationResult.data;
+
+      // Route through unified AI router — auto-fallback across providers
+      const { callChatCompletion } = await import("../_shared/anthropic.ts");
+      const aiResponse = await callChatCompletion({
+        model,
+        messages,
+        temperature,
+        max_tokens,
+        stream,
+      });
+
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        console.error("AI router error:", aiResponse.status, errorText);
+        if (aiResponse.status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (aiResponse.status === 402) {
+          return new Response(
+            JSON.stringify({ error: "AI quota exhausted across all providers." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        return new Response(
+          JSON.stringify({ error: "All AI providers are temporarily unavailable." }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const provider = aiResponse.headers.get("X-Ai-Provider") ?? "unknown";
+
+      if (stream) {
+        return new Response(aiResponse.body, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/event-stream",
+            "X-Ai-Provider": provider,
+          },
+        });
+      } else {
+        const data = await aiResponse.json();
+        return new Response(JSON.stringify(data), {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "X-Ai-Provider": provider,
+          },
+        });
+      }
    } catch (error) {
      console.error("openai-chat error:", error);
      return new Response(
