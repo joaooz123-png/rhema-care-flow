@@ -104,7 +104,7 @@ Respond in JSON format:
   "strengths": ["list of strengths"]
 }`;
 
-      const { callChatCompletion } = await import('../_shared/anthropic.ts');
+      const { callChatCompletion, secondOpinion } = await import('../_shared/anthropic.ts');
       const aiResponse = await callChatCompletion({
         messages: [{ role: 'user', content: analysisPrompt }],
         temperature: 0.3,
@@ -114,9 +114,10 @@ Respond in JSON format:
         throw new Error('AI analysis failed');
       }
 
+      const primaryProvider = aiResponse.headers.get('X-Ai-Provider') ?? 'unknown';
       const aiData = await aiResponse.json();
       const analysisText = aiData.choices[0]?.message?.content || '';
-      
+
       // Parse JSON from response
       let analysis;
       try {
@@ -133,14 +134,27 @@ Respond in JSON format:
         };
       }
 
-      // Determine final decision
-      const confidenceScore = analysis.overall_score || 0;
-      const requiresHumanReview = analysis.requires_human_review || 
-        confidenceScore < HUMAN_REVIEW_THRESHOLD ||
-        ['D', 'I'].includes(analysis.grade) ||
-        ['4', '5'].includes(analysis.evidence_level);
+      // CROSS-AUDIT: ask a different provider to verify the Judge's verdict
+      const audit = await secondOpinion({
+        primaryProvider,
+        primaryContent: analysisText,
+        task: 'Peer-review a rheumatology article quality assessment (scores, evidence level, grade, decision).',
+        context: `TITLE: ${item.generated_title || item.topic}\nSUMMARY: ${item.generated_summary || ''}`,
+        temperature: 0.2,
+      });
 
-      const autoApprove = !requiresHumanReview && confidenceScore >= AUTO_APPROVE_THRESHOLD;
+      // Determine final decision (audit can downgrade auto-approval)
+      const confidenceScore = analysis.overall_score || 0;
+      const auditPenalty = audit.ok && audit.agreement < 0.6 ? 15 : 0;
+      const effectiveScore = Math.max(0, confidenceScore - auditPenalty);
+
+      const requiresHumanReview = analysis.requires_human_review ||
+        effectiveScore < HUMAN_REVIEW_THRESHOLD ||
+        ['D', 'I'].includes(analysis.grade) ||
+        ['4', '5'].includes(analysis.evidence_level) ||
+        (audit.ok && audit.agreement < 0.5);
+
+      const autoApprove = !requiresHumanReview && effectiveScore >= AUTO_APPROVE_THRESHOLD;
 
       const decision = autoApprove ? 'auto_approve' : 'human_review';
 
@@ -151,10 +165,12 @@ Respond in JSON format:
         requires_human_review: requiresHumanReview,
         auto_approved: autoApprove,
         judge_decision: decision,
-        judge_confidence: confidenceScore,
-        judge_reasoning: analysis.reasoning,
+        judge_confidence: effectiveScore,
+        judge_reasoning: analysis.reasoning + (audit.ok
+          ? `\n\n[Cross-audit by ${audit.provider}: agreement=${audit.agreement.toFixed(2)}]`
+          : '\n\n[Cross-audit unavailable]'),
         status: autoApprove ? 'approved' : 'pending_review',
-        ai_verification_score: confidenceScore,
+        ai_verification_score: effectiveScore,
       };
 
       if (requiresHumanReview && admin_email) {
