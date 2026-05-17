@@ -210,6 +210,10 @@ Respond in JSON:
         recommendation: analysis.recommendation,
         flagged: hasCriticalIssue,
         details: analysis,
+        primary_provider: primaryProvider,
+        cross_audit: audit.ok
+          ? { provider: audit.provider, agreement: audit.agreement }
+          : { provider: audit.provider, ok: false },
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
