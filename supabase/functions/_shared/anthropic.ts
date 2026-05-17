@@ -14,7 +14,7 @@ interface OAIBody {
   max_tokens?: number;
 }
 
-type ProviderId = "anthropic" | "openai" | "gemini" | "deepseek";
+type ProviderId = "lovable" | "anthropic" | "openai" | "gemini" | "deepseek";
 
 interface ProviderResult {
   ok: boolean;
@@ -30,6 +30,88 @@ const FALLBACK_STATUSES = new Set([401, 402, 403, 429, 500, 502, 503, 504, 529])
 
 function shouldTryNext(status: number): boolean {
   return FALLBACK_STATUSES.has(status);
+}
+
+// --------------------------- Lovable AI Gateway ---------------------------
+const LOVABLE_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+function mapLovableModel(openaiModel?: string): string {
+  if (!openaiModel) return "google/gemini-3-flash-preview";
+  const m = openaiModel.toLowerCase();
+  if (m.includes("nano") || m.includes("flash-lite") || m.includes("haiku") || m.includes("mini")) {
+    return "google/gemini-2.5-flash-lite";
+  }
+  if (m.includes("pro") || m.includes("opus") || m.includes("sonnet") || m.includes("gpt-5")) {
+    return "google/gemini-2.5-pro";
+  }
+  if (m.startsWith("google/") || m.startsWith("openai/")) return openaiModel;
+  return "google/gemini-3-flash-preview";
+}
+
+async function callLovable(body: OAIBody): Promise<ProviderResult> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) {
+    return {
+      ok: false,
+      shouldFallback: true,
+      status: 0,
+      response: jsonError("LOVABLE_API_KEY not configured", 500),
+      errorText: "no key",
+    };
+  }
+
+  const payload = {
+    model: mapLovableModel(body.model),
+    messages: body.messages,
+    stream: !!body.stream,
+    ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
+    ...(body.max_tokens ? { max_tokens: body.max_tokens } : {}),
+  };
+
+  const upstream = await fetch(LOVABLE_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!upstream.ok) {
+    const text = await upstream.text();
+    console.error(`[lovable] ${upstream.status}:`, text.slice(0, 300));
+    return {
+      ok: false,
+      shouldFallback: shouldTryNext(upstream.status),
+      status: upstream.status,
+      response: jsonError(text || "Lovable AI request failed", upstream.status),
+      errorText: text,
+    };
+  }
+
+  if (!body.stream) {
+    const data = await upstream.json();
+    return {
+      ok: true,
+      shouldFallback: false,
+      status: 200,
+      response: new Response(JSON.stringify({ ...data, _provider: "lovable" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "X-Ai-Provider": "lovable" },
+      }),
+    };
+  }
+
+  // Lovable gateway streams OpenAI-compatible SSE — pass through
+  return {
+    ok: true,
+    shouldFallback: false,
+    status: 200,
+    response: new Response(upstream.body, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream", "X-Ai-Provider": "lovable" },
+    }),
+  };
 }
 
 // --------------------------- Anthropic ---------------------------
@@ -487,6 +569,7 @@ function jsonError(text: string, status: number): Response {
 }
 
 const PROVIDERS: Record<ProviderId, (body: OAIBody) => Promise<ProviderResult>> = {
+  lovable: callLovable,
   anthropic: callAnthropic,
   openai: callOpenAI,
   gemini: callGemini,
@@ -494,16 +577,18 @@ const PROVIDERS: Record<ProviderId, (body: OAIBody) => Promise<ProviderResult>> 
 };
 
 function getProviderOrder(): ProviderId[] {
-  // Allow override via env: AI_PROVIDER_ORDER="openai,anthropic,gemini,deepseek"
+  // Allow override via env: AI_PROVIDER_ORDER="lovable,openai,anthropic,gemini,deepseek"
   const raw = Deno.env.get("AI_PROVIDER_ORDER");
   if (raw) {
     const parsed = raw.split(",").map((s) => s.trim().toLowerCase()).filter(
       (s): s is ProviderId =>
-        s === "anthropic" || s === "openai" || s === "gemini" || s === "deepseek",
+        s === "lovable" || s === "anthropic" || s === "openai" ||
+        s === "gemini" || s === "deepseek",
     );
     if (parsed.length) return parsed;
   }
-  return ["anthropic", "openai", "deepseek", "gemini"];
+  // Default: Lovable AI Gateway first (managed, free quota), then external providers.
+  return ["lovable", "anthropic", "openai", "deepseek", "gemini"];
 }
 
 /**
