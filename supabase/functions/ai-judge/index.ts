@@ -190,13 +190,17 @@ Respond in JSON format:
         action: 'evaluate',
         evidence_level: analysis.evidence_level,
         evidence_grade: analysis.grade,
-        confidence_score: confidenceScore,
+        confidence_score: effectiveScore,
         reasoning: analysis.reasoning,
         decision,
         metadata: {
           scores: analysis.scores,
           concerns: analysis.concerns,
           strengths: analysis.strengths,
+          primary_provider: primaryProvider,
+          cross_audit: audit.ok
+            ? { provider: audit.provider, agreement: audit.agreement, raw: audit.raw }
+            : { provider: audit.provider, ok: false },
         },
       });
 
