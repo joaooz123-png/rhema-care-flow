@@ -100,7 +100,7 @@ Respond in JSON:
   "reasoning": "explanation"
 }`;
 
-      const { callChatCompletion } = await import('../_shared/anthropic.ts');
+      const { callChatCompletion, secondOpinion } = await import('../_shared/anthropic.ts');
       const aiResponse = await callChatCompletion({
         messages: [{ role: 'user', content: monitorPrompt }],
         temperature: 0.2,
@@ -110,6 +110,7 @@ Respond in JSON:
         throw new Error('Sentinel analysis failed');
       }
 
+      const primaryProvider = aiResponse.headers.get('X-Ai-Provider') ?? 'unknown';
       const aiData = await aiResponse.json();
       const analysisText = aiData.choices[0]?.message?.content || '';
 
@@ -120,6 +121,30 @@ Respond in JSON:
         analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : { status: 'clean', issues: [] };
       } catch {
         analysis = { status: 'clean', issues: [], recommendation: 'keep_published' };
+      }
+
+      // CROSS-AUDIT: second-opinion from a different provider
+      const audit = await secondOpinion({
+        primaryProvider,
+        primaryContent: analysisText,
+        task: 'Verify a sentinel monitor verdict on medical content quality and safety.',
+        context: `TITLE: ${content.title}\nCONTENT: ${(content.content || content.summary || '').slice(0, 4000)}`,
+        temperature: 0.2,
+      });
+
+      // If audit strongly disagrees, force flagging
+      if (audit.ok && audit.agreement < 0.5) {
+        analysis.status = 'flagged';
+        analysis.issues = analysis.issues || [];
+        analysis.issues.push({
+          type: 'bias_detection',
+          severity: 'medium',
+          description: `Cross-audit by ${audit.provider} disagreed (agreement=${audit.agreement.toFixed(2)}).`,
+          suggested_fix: 'Trigger human review.',
+        });
+        analysis.recommendation = analysis.recommendation === 'immediate_unpublish'
+          ? 'immediate_unpublish'
+          : 'flag_for_review';
       }
 
       // Process issues and create alerts
@@ -185,6 +210,10 @@ Respond in JSON:
         recommendation: analysis.recommendation,
         flagged: hasCriticalIssue,
         details: analysis,
+        primary_provider: primaryProvider,
+        cross_audit: audit.ok
+          ? { provider: audit.provider, agreement: audit.agreement }
+          : { provider: audit.provider, ok: false },
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

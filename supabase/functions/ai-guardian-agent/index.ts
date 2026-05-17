@@ -169,54 +169,23 @@ serve(async (req) => {
 
     if (action === 'generate_confirmation') {
       const confirmationId = `CONF-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-      
-      const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('OPENAI_API_KEY');
-      const useGemini = !!Deno.env.get('GEMINI_API_KEY');
 
-      let aiResponse: string;
+      const { callChatCompletion } = await import('../_shared/anthropic.ts');
+      const aiHttp = await callChatCompletion({
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: `Request: ${message}\n\nContext: ${JSON.stringify(context || {})}\n\nGenerate a formal confirmation document with ID: ${confirmationId}` },
+        ],
+        temperature: 0.3,
+        max_tokens: 2048,
+      });
 
-      if (useGemini) {
-        const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{
-                  text: `${SYSTEM_PROMPT}\n\nUser Request: ${message}\n\nContext: ${JSON.stringify(context || {})}\n\nGenerate a formal confirmation document with ID: ${confirmationId}`
-                }]
-              }],
-              generationConfig: {
-                temperature: 0.3,
-                maxOutputTokens: 2048,
-              },
-            }),
-          }
-        );
-
-        const geminiData = await geminiResponse.json();
-        aiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Confirmation generated.';
+      let aiResponse = 'Confirmation generated.';
+      if (aiHttp.ok) {
+        const data = await aiHttp.json();
+        aiResponse = data?.choices?.[0]?.message?.content || aiResponse;
       } else {
-        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT },
-              { role: 'user', content: `Request: ${message}\n\nContext: ${JSON.stringify(context || {})}\n\nGenerate a formal confirmation document with ID: ${confirmationId}` }
-            ],
-            temperature: 0.3,
-            max_tokens: 2048,
-          }),
-        });
-
-        const openaiData = await openaiResponse.json();
-        aiResponse = openaiData.choices?.[0]?.message?.content || 'Confirmation generated.';
+        console.error('Guardian confirmation AI failure:', aiHttp.status);
       }
 
       return new Response(
@@ -227,57 +196,29 @@ serve(async (req) => {
           issued_by: ULTIMATE_USER_STANDARDS.identity.name,
           issued_at: new Date().toISOString(),
           authority_level: 'ultimate',
+          ai_provider: aiHttp.headers.get('X-Ai-Provider') ?? 'unknown',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (action === 'chat') {
-      const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('OPENAI_API_KEY');
-      const useGemini = !!Deno.env.get('GEMINI_API_KEY');
+      const { callChatCompletion } = await import('../_shared/anthropic.ts');
+      const aiHttp = await callChatCompletion({
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: message },
+        ],
+        temperature: 0.7,
+        max_tokens: 2048,
+      });
 
-      let aiResponse: string;
-
-      if (useGemini) {
-        const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{ text: `${SYSTEM_PROMPT}\n\nUser: ${message}` }]
-              }],
-              generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 2048,
-              },
-            }),
-          }
-        );
-
-        const geminiData = await geminiResponse.json();
-        aiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'I am here to assist you.';
+      let aiResponse = 'I am here to assist you.';
+      if (aiHttp.ok) {
+        const data = await aiHttp.json();
+        aiResponse = data?.choices?.[0]?.message?.content || aiResponse;
       } else {
-        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT },
-              { role: 'user', content: message }
-            ],
-            temperature: 0.7,
-            max_tokens: 2048,
-          }),
-        });
-
-        const openaiData = await openaiResponse.json();
-        aiResponse = openaiData.choices?.[0]?.message?.content || 'I am here to assist you.';
+        console.error('Guardian chat AI failure:', aiHttp.status);
       }
 
       return new Response(
@@ -286,6 +227,7 @@ serve(async (req) => {
           response: aiResponse,
           agent: 'AI Guardian',
           timestamp: new Date().toISOString(),
+          ai_provider: aiHttp.headers.get('X-Ai-Provider') ?? 'unknown',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

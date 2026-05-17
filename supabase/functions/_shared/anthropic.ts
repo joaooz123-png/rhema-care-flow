@@ -14,7 +14,7 @@ interface OAIBody {
   max_tokens?: number;
 }
 
-type ProviderId = "anthropic" | "openai" | "gemini" | "deepseek";
+type ProviderId = "lovable" | "anthropic" | "openai" | "gemini" | "deepseek";
 
 interface ProviderResult {
   ok: boolean;
@@ -30,6 +30,88 @@ const FALLBACK_STATUSES = new Set([401, 402, 403, 429, 500, 502, 503, 504, 529])
 
 function shouldTryNext(status: number): boolean {
   return FALLBACK_STATUSES.has(status);
+}
+
+// --------------------------- Lovable AI Gateway ---------------------------
+const LOVABLE_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+function mapLovableModel(openaiModel?: string): string {
+  if (!openaiModel) return "google/gemini-3-flash-preview";
+  const m = openaiModel.toLowerCase();
+  if (m.includes("nano") || m.includes("flash-lite") || m.includes("haiku") || m.includes("mini")) {
+    return "google/gemini-2.5-flash-lite";
+  }
+  if (m.includes("pro") || m.includes("opus") || m.includes("sonnet") || m.includes("gpt-5")) {
+    return "google/gemini-2.5-pro";
+  }
+  if (m.startsWith("google/") || m.startsWith("openai/")) return openaiModel;
+  return "google/gemini-3-flash-preview";
+}
+
+async function callLovable(body: OAIBody): Promise<ProviderResult> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) {
+    return {
+      ok: false,
+      shouldFallback: true,
+      status: 0,
+      response: jsonError("LOVABLE_API_KEY not configured", 500),
+      errorText: "no key",
+    };
+  }
+
+  const payload = {
+    model: mapLovableModel(body.model),
+    messages: body.messages,
+    stream: !!body.stream,
+    ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
+    ...(body.max_tokens ? { max_tokens: body.max_tokens } : {}),
+  };
+
+  const upstream = await fetch(LOVABLE_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!upstream.ok) {
+    const text = await upstream.text();
+    console.error(`[lovable] ${upstream.status}:`, text.slice(0, 300));
+    return {
+      ok: false,
+      shouldFallback: shouldTryNext(upstream.status),
+      status: upstream.status,
+      response: jsonError(text || "Lovable AI request failed", upstream.status),
+      errorText: text,
+    };
+  }
+
+  if (!body.stream) {
+    const data = await upstream.json();
+    return {
+      ok: true,
+      shouldFallback: false,
+      status: 200,
+      response: new Response(JSON.stringify({ ...data, _provider: "lovable" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "X-Ai-Provider": "lovable" },
+      }),
+    };
+  }
+
+  // Lovable gateway streams OpenAI-compatible SSE — pass through
+  return {
+    ok: true,
+    shouldFallback: false,
+    status: 200,
+    response: new Response(upstream.body, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream", "X-Ai-Provider": "lovable" },
+    }),
+  };
 }
 
 // --------------------------- Anthropic ---------------------------
@@ -487,6 +569,7 @@ function jsonError(text: string, status: number): Response {
 }
 
 const PROVIDERS: Record<ProviderId, (body: OAIBody) => Promise<ProviderResult>> = {
+  lovable: callLovable,
   anthropic: callAnthropic,
   openai: callOpenAI,
   gemini: callGemini,
@@ -494,16 +577,18 @@ const PROVIDERS: Record<ProviderId, (body: OAIBody) => Promise<ProviderResult>> 
 };
 
 function getProviderOrder(): ProviderId[] {
-  // Allow override via env: AI_PROVIDER_ORDER="openai,anthropic,gemini,deepseek"
+  // Allow override via env: AI_PROVIDER_ORDER="lovable,openai,anthropic,gemini,deepseek"
   const raw = Deno.env.get("AI_PROVIDER_ORDER");
   if (raw) {
     const parsed = raw.split(",").map((s) => s.trim().toLowerCase()).filter(
       (s): s is ProviderId =>
-        s === "anthropic" || s === "openai" || s === "gemini" || s === "deepseek",
+        s === "lovable" || s === "anthropic" || s === "openai" ||
+        s === "gemini" || s === "deepseek",
     );
     if (parsed.length) return parsed;
   }
-  return ["anthropic", "openai", "deepseek", "gemini"];
+  // Default: Lovable AI Gateway first (managed, free quota), then external providers.
+  return ["lovable", "anthropic", "openai", "deepseek", "gemini"];
 }
 
 /**
@@ -557,4 +642,75 @@ export async function callChatCompletion(body: OAIBody): Promise<Response> {
     status: lastResult?.status && lastResult.status >= 400 ? lastResult.status : 503,
     headers: { "Content-Type": "application/json", "X-Ai-Attempts": summary },
   });
+}
+
+/**
+ * Cross-audit: ask a DIFFERENT provider to verify/critique a previous answer.
+ * Used by ai-judge / ai-sentinel to get a second opinion before final decision.
+ *
+ * Returns { ok, provider, content, agreement } where `agreement` is a heuristic
+ * 0-1 score (1 = providers strongly agree). Never throws — on failure returns
+ * ok=false and the caller falls back to the primary answer.
+ */
+export async function secondOpinion(opts: {
+  primaryProvider?: string;        // provider that produced `primaryContent`
+  primaryContent: string;
+  task: string;                    // short description of the task being audited
+  context?: string;                // optional original input/content under review
+  temperature?: number;
+}): Promise<{
+  ok: boolean;
+  provider: string | null;
+  content: string;
+  agreement: number;               // 0..1 heuristic
+  raw?: unknown;
+}> {
+  const order = getProviderOrder();
+  // Pick first provider DIFFERENT from the primary
+  const auditor = order.find((p) => p !== (opts.primaryProvider ?? "")) ?? order[0];
+  if (!auditor) return { ok: false, provider: null, content: "", agreement: 0 };
+
+  const prompt = `You are an INDEPENDENT AUDITOR cross-checking another AI's answer.
+
+TASK: ${opts.task}
+
+${opts.context ? `ORIGINAL INPUT/CONTEXT:\n${opts.context.slice(0, 6000)}\n\n` : ""}PRIMARY AI ANSWER (from ${opts.primaryProvider ?? "unknown"}):
+${opts.primaryContent.slice(0, 6000)}
+
+Respond ONLY with strict JSON:
+{
+  "agreement": 0.0-1.0,                // how much you agree with the primary answer
+  "verdict": "agree" | "partial" | "disagree",
+  "issues": ["concrete issue 1", "..."], // empty if none
+  "corrections": "free-text corrections or empty string"
+}`;
+
+  try {
+    const result = await PROVIDERS[auditor as ProviderId]({
+      messages: [
+        { role: "system", content: "You are a strict, evidence-focused medical AI auditor. Output JSON only." },
+        { role: "user", content: prompt },
+      ],
+      temperature: opts.temperature ?? 0.1,
+      stream: false,
+    });
+    if (!result.ok) return { ok: false, provider: auditor, content: "", agreement: 0 };
+    const data = await result.response.json();
+    const text: string = data?.choices?.[0]?.message?.content ?? "";
+    const match = text.match(/\{[\s\S]*\}/);
+    const parsed = match ? JSON.parse(match[0]) : null;
+    const agreement = typeof parsed?.agreement === "number"
+      ? Math.max(0, Math.min(1, parsed.agreement))
+      : (parsed?.verdict === "agree" ? 1 : parsed?.verdict === "partial" ? 0.5 : 0);
+    return {
+      ok: true,
+      provider: auditor,
+      content: text,
+      agreement,
+      raw: parsed ?? text,
+    };
+  } catch (err) {
+    console.error("[secondOpinion] failed:", err);
+    return { ok: false, provider: auditor, content: "", agreement: 0 };
+  }
 }
