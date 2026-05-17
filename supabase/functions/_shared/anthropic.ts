@@ -643,3 +643,74 @@ export async function callChatCompletion(body: OAIBody): Promise<Response> {
     headers: { "Content-Type": "application/json", "X-Ai-Attempts": summary },
   });
 }
+
+/**
+ * Cross-audit: ask a DIFFERENT provider to verify/critique a previous answer.
+ * Used by ai-judge / ai-sentinel to get a second opinion before final decision.
+ *
+ * Returns { ok, provider, content, agreement } where `agreement` is a heuristic
+ * 0-1 score (1 = providers strongly agree). Never throws — on failure returns
+ * ok=false and the caller falls back to the primary answer.
+ */
+export async function secondOpinion(opts: {
+  primaryProvider?: string;        // provider that produced `primaryContent`
+  primaryContent: string;
+  task: string;                    // short description of the task being audited
+  context?: string;                // optional original input/content under review
+  temperature?: number;
+}): Promise<{
+  ok: boolean;
+  provider: string | null;
+  content: string;
+  agreement: number;               // 0..1 heuristic
+  raw?: unknown;
+}> {
+  const order = getProviderOrder();
+  // Pick first provider DIFFERENT from the primary
+  const auditor = order.find((p) => p !== (opts.primaryProvider ?? "")) ?? order[0];
+  if (!auditor) return { ok: false, provider: null, content: "", agreement: 0 };
+
+  const prompt = `You are an INDEPENDENT AUDITOR cross-checking another AI's answer.
+
+TASK: ${opts.task}
+
+${opts.context ? `ORIGINAL INPUT/CONTEXT:\n${opts.context.slice(0, 6000)}\n\n` : ""}PRIMARY AI ANSWER (from ${opts.primaryProvider ?? "unknown"}):
+${opts.primaryContent.slice(0, 6000)}
+
+Respond ONLY with strict JSON:
+{
+  "agreement": 0.0-1.0,                // how much you agree with the primary answer
+  "verdict": "agree" | "partial" | "disagree",
+  "issues": ["concrete issue 1", "..."], // empty if none
+  "corrections": "free-text corrections or empty string"
+}`;
+
+  try {
+    const result = await PROVIDERS[auditor as ProviderId]({
+      messages: [
+        { role: "system", content: "You are a strict, evidence-focused medical AI auditor. Output JSON only." },
+        { role: "user", content: prompt },
+      ],
+      temperature: opts.temperature ?? 0.1,
+      stream: false,
+    });
+    if (!result.ok) return { ok: false, provider: auditor, content: "", agreement: 0 };
+    const data = await result.response.json();
+    const text: string = data?.choices?.[0]?.message?.content ?? "";
+    const match = text.match(/\{[\s\S]*\}/);
+    const parsed = match ? JSON.parse(match[0]) : null;
+    const agreement = typeof parsed?.agreement === "number"
+      ? Math.max(0, Math.min(1, parsed.agreement))
+      : (parsed?.verdict === "agree" ? 1 : parsed?.verdict === "partial" ? 0.5 : 0);
+    return {
+      ok: true,
+      provider: auditor,
+      content: text,
+      agreement,
+      raw: parsed ?? text,
+    };
+  } catch (err) {
+    console.error("[secondOpinion] failed:", err);
+    return { ok: false, provider: auditor, content: "", agreement: 0 };
+  }
+}
