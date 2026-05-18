@@ -1,24 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import type {
+  KnowledgeArticle,
+  KnowledgeArticleStatus,
+  KnowledgeArticleVisibility,
+  KnowledgeLibraryDatabase,
+} from '@/integrations/supabase/knowledgeTypes';
 
-export type KnowledgeArticleVisibility = 'public' | 'authenticated' | 'admin';
-export type KnowledgeArticleStatus = 'draft' | 'published' | 'archived';
+export type { KnowledgeArticle, KnowledgeArticleStatus, KnowledgeArticleVisibility };
 
-export interface KnowledgeArticle {
-  id: string;
-  title: string;
-  slug: string;
-  category: string;
-  summary: string | null;
-  content: string;
-  tags: string[];
-  source_url: string | null;
-  visibility: KnowledgeArticleVisibility;
-  status: KnowledgeArticleStatus;
-  created_at: string;
-  updated_at: string;
-}
+const knowledgeSupabase = supabase as unknown as ReturnType<typeof createClient<KnowledgeLibraryDatabase>>;
 
 interface UseKnowledgeArticlesOptions {
   query?: string;
@@ -35,9 +28,9 @@ export function useKnowledgeArticles(options: UseKnowledgeArticlesOptions = {}) 
   const fetchArticles = useCallback(async () => {
     setLoading(true);
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await knowledgeSupabase
       .from('knowledge_articles')
-      .select('id,title,slug,category,summary,content,tags,source_url,visibility,status,created_at,updated_at')
+      .select('id,title,slug,category,summary,content,tags,source_url,visibility,status,created_by,updated_by,created_at,updated_at')
       .eq('status', 'published')
       .order('updated_at', { ascending: false });
 
@@ -46,7 +39,7 @@ export function useKnowledgeArticles(options: UseKnowledgeArticlesOptions = {}) 
       toast.error('Não foi possível carregar a biblioteca');
       setArticles([]);
     } else {
-      setArticles((data || []) as KnowledgeArticle[]);
+      setArticles(data || []);
     }
 
     setLoading(false);
@@ -121,9 +114,9 @@ export function useKnowledgeArticle(slug?: string) {
 
       setLoading(true);
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await knowledgeSupabase
         .from('knowledge_articles')
-        .select('id,title,slug,category,summary,content,tags,source_url,visibility,status,created_at,updated_at')
+        .select('id,title,slug,category,summary,content,tags,source_url,visibility,status,created_by,updated_by,created_at,updated_at')
         .eq('slug', slug)
         .eq('status', 'published')
         .maybeSingle();
@@ -135,7 +128,7 @@ export function useKnowledgeArticle(slug?: string) {
         toast.error('Não foi possível carregar o artigo');
         setArticle(null);
       } else {
-        setArticle((data || null) as KnowledgeArticle | null);
+        setArticle(data || null);
       }
 
       setLoading(false);
