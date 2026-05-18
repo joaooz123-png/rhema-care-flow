@@ -42,6 +42,8 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
  const PatientPortal = lazy(() => import("./pages/PatientPortal"));
 const Education = lazy(() => import("./pages/Education"));
 const KnowledgeLibrary = lazy(() => import("./pages/KnowledgeLibrary"));
+const PublicKnowledgeLibrary = lazy(() => import("./pages/PublicKnowledgeLibrary"));
+const PublicKnowledgeArticle = lazy(() => import("./pages/PublicKnowledgeArticle"));
 const PatientEducationLibrary = lazy(() => import("./pages/PatientEducationLibrary"));
 const LearnPediatrics = lazy(() => import("./pages/LearnPediatrics"));
 const Analytics = lazy(() => import("./pages/Analytics"));
@@ -134,6 +136,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
                     <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
                     <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
                     <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+                    <Route path="/biblioteca" element={<PublicKnowledgeLibrary />} />
+                    <Route path="/biblioteca/:slug" element={<PublicKnowledgeArticle />} />
                     <Route path="/onboarding" element={<ProtectedRoute><AccountTypeSelect /></ProtectedRoute>} />
                     <Route path="/dashboard" element={<ClinicianRoute><Dashboard /></ClinicianRoute>} />
                     <Route path="/patients" element={<ClinicianRoute><Patients /></ClinicianRoute>} />
