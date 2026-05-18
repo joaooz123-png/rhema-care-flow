@@ -1,6 +1,7 @@
 -- Knowledge Library foundation for UHS / Rhema Care Flow
 -- Creates a public/private article library and prepares the project for future RAG with pgvector.
 
+create extension if not exists pgcrypto;
 create extension if not exists vector;
 
 create table if not exists public.knowledge_articles (
@@ -56,39 +57,89 @@ alter table public.knowledge_articles enable row level security;
 alter table public.knowledge_documents enable row level security;
 alter table public.knowledge_chunks enable row level security;
 
-create policy if not exists "Read published public articles"
-  on public.knowledge_articles
-  for select
-  using (status = 'published' and visibility = 'public');
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'knowledge_articles'
+      and policyname = 'Read published public articles'
+  ) then
+    create policy "Read published public articles"
+      on public.knowledge_articles
+      for select
+      using (status = 'published' and visibility = 'public');
+  end if;
+end $$;
 
-create policy if not exists "Read authenticated published articles"
-  on public.knowledge_articles
-  for select
-  using (status = 'published' and visibility in ('public', 'authenticated') and auth.uid() is not null);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'knowledge_articles'
+      and policyname = 'Read authenticated published articles'
+  ) then
+    create policy "Read authenticated published articles"
+      on public.knowledge_articles
+      for select
+      using (status = 'published' and visibility in ('public', 'authenticated') and auth.uid() is not null);
+  end if;
+end $$;
 
-create policy if not exists "Users manage own knowledge articles"
-  on public.knowledge_articles
-  for all
-  using (auth.uid() = created_by)
-  with check (auth.uid() = created_by);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'knowledge_articles'
+      and policyname = 'Users manage own knowledge articles'
+  ) then
+    create policy "Users manage own knowledge articles"
+      on public.knowledge_articles
+      for all
+      using (auth.uid() = created_by)
+      with check (auth.uid() = created_by);
+  end if;
+end $$;
 
-create policy if not exists "Read chunks for visible articles"
-  on public.knowledge_chunks
-  for select
-  using (
-    exists (
-      select 1 from public.knowledge_articles a
-      where a.id = knowledge_chunks.article_id
-      and a.status = 'published'
-      and (a.visibility = 'public' or auth.uid() is not null)
-    )
-  );
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'knowledge_chunks'
+      and policyname = 'Read chunks for visible articles'
+  ) then
+    create policy "Read chunks for visible articles"
+      on public.knowledge_chunks
+      for select
+      using (
+        exists (
+          select 1 from public.knowledge_articles a
+          where a.id = knowledge_chunks.article_id
+          and a.status = 'published'
+          and (a.visibility = 'public' or auth.uid() is not null)
+        )
+      );
+  end if;
+end $$;
 
-create policy if not exists "Users manage own documents"
-  on public.knowledge_documents
-  for all
-  using (auth.uid() = created_by)
-  with check (auth.uid() = created_by);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'knowledge_documents'
+      and policyname = 'Users manage own documents'
+  ) then
+    create policy "Users manage own documents"
+      on public.knowledge_documents
+      for all
+      using (auth.uid() = created_by)
+      with check (auth.uid() = created_by);
+  end if;
+end $$;
 
 create or replace function public.set_updated_at()
 returns trigger
