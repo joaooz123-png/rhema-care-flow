@@ -1,0 +1,104 @@
+{
+  "name": "Rhema Care Flow Living Library",
+  "version": "0.1.0",
+  "updated_at": "2026-05-19",
+  "principle": "Cada melhoria, bug, decisao clinica e integracao deve virar conhecimento versionado e reutilizavel.",
+  "items": [
+    {
+      "id": "ux-long-text-see-more",
+      "title": "Padrao Ver Mais para textos longos",
+      "category": "produto",
+      "status": "seed",
+      "source": "bug_report",
+      "module": "ui",
+      "summary": "Padronizar truncamento, expansao e rolagem segura para textos longos em cards, chat, dialogs e prontuario.",
+      "application": "IA, Biblioteca, Prontuario Integrado, Prescricoes, Evolucoes e notas clinicas.",
+      "validation": "Texto longo nao deve quebrar layout, esconder botoes ou impedir scroll em mobile.",
+      "next_step": "Criar componente ReusableExpandableText."
+    },
+    {
+      "id": "ai-response-contract",
+      "title": "Contrato de resposta da IA",
+      "category": "tecnica",
+      "status": "draft",
+      "source": "pull_request",
+      "module": "ai-assistant",
+      "summary": "A IA deve aceitar SSE, JSON comum e texto simples, com erro explicito quando a resposta vier vazia.",
+      "application": "src/hooks/useAIAssistant.ts e Supabase Edge Function ai-config-assistant.",
+      "validation": "Testar streaming, JSON, erro 401, erro 402, erro 429 e resposta vazia.",
+      "next_step": "Documentar contrato esperado da Edge Function."
+    },
+    {
+      "id": "prescription-safety-flow",
+      "title": "Fluxo seguro de prescricoes",
+      "category": "produto",
+      "status": "seed",
+      "source": "bug_report",
+      "module": "prescriptions",
+      "summary": "Prescricoes precisam preservar rascunho, validar campos obrigatorios e nao perder dados quando salvar falha.",
+      "application": "PrescriptionComposer, PrescriptionList, assinatura e geracao de PDF.",
+      "validation": "Criar, editar, salvar rascunho, salvar e assinar, falhar insert e manter formulario intacto.",
+      "next_step": "Separar reset local apenas quando createPrescription retornar sucesso."
+    },
+    {
+      "id": "continuous-agent-factory",
+      "title": "Fabrica continua Builder Agent + Auditor Agent",
+      "category": "estrategica",
+      "status": "draft",
+      "source": "architecture_decision",
+      "module": "github-actions",
+      "summary": "Sistema de crescimento continuo em que um agente propoe codigo e outro audita antes de merge.",
+      "application": "GitHub PRs, Actions, Lovable, Supabase e documentacao tecnica.",
+      "validation": "Todo PR deve ter CI, checklist e escopo pequeno.",
+      "next_step": "Criar labels e templates de issue/PR para agentes."
+    },
+    {
+      "id": "supabase-rls-clinical-privacy",
+      "title": "RLS e privacidade clinica por padrao",
+      "category": "tecnica",
+      "status": "seed",
+      "source": "architecture_decision",
+      "module": "supabase",
+      "summary": "Toda tabela clinica deve nascer com RLS, provider/user scoping e minimo de dados identificaveis.",
+      "application": "patient_cards, prescriptions, timeline, monitoring, knowledge library e audit logs.",
+      "validation": "Usuario A nao acessa dados do Usuario B; dados sensiveis nao aparecem em biblioteca publica.",
+      "next_step": "Criar template de migration clinica segura."
+    },
+    {
+      "id": "uhs-operating-layer",
+      "title": "UHS Health OS como camada operacional clinica",
+      "category": "estrategica",
+      "status": "draft",
+      "source": "project_strategy",
+      "module": "uhs-health-os",
+      "summary": "O produto deve ser explicado como camada operacional clinica longitudinal, nao como app isolado.",
+      "application": "Pitch, Finep, Inatel, biblioteca publica, paginas institucionais e documentacao tecnica.",
+      "validation": "Mensagem deve conectar longitudinalidade, interoperabilidade, auditoria, outcomes e valor em saude.",
+      "next_step": "Criar artigo publico na biblioteca sobre fundamentos do UHS Health OS."
+    },
+    {
+      "id": "fhir-longitudinal-timeline",
+      "title": "Timeline longitudinal inspirada em FHIR",
+      "category": "clinica",
+      "status": "seed",
+      "source": "product_roadmap",
+      "module": "patient-timeline",
+      "summary": "Consolidar encounters, observations, medications, scores e eventos em uma timeline longitudinal.",
+      "application": "PatientDetail, Prontuario Integrado, exportacao PDF e interoperabilidade futura.",
+      "validation": "Eventos devem ordenar por data, filtrar por tipo e preservar contexto clinico sem identificar indevidamente.",
+      "next_step": "Criar componente PatientTimeline e hooks correspondentes."
+    },
+    {
+      "id": "lovable-github-sync-discipline",
+      "title": "Disciplina de sincronizacao Lovable + GitHub",
+      "category": "tecnica",
+      "status": "seed",
+      "source": "repository_operations",
+      "module": "devops",
+      "summary": "Lovable pode acelerar interface, mas GitHub deve continuar como fonte da verdade e PRs como controle de qualidade.",
+      "application": "Branches, PRs, Actions, revisao de bugs e deploy.",
+      "validation": "Nenhuma alteracao critica deve entrar sem passar por CI e auditoria.",
+      "next_step": "Criar checklist de PR para mudancas vindas do Lovable."
+    }
+  ]
+}
