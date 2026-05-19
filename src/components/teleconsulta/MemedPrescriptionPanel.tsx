@@ -67,10 +67,10 @@ export function MemedPrescriptionPanel({
     if (ready && tokenAuto && patientCode && !patientConfigured) {
       const patient: MemedPatient = {
         nome: patientCode,
-        idExterno: patientCardId,
+        idExterno: patientCardId ?? patientCode,
+        sexo: 'Não informado',
       };
-      setPatient(patient);
-      setPatientConfigured(true);
+      setPatient(patient).then((ok) => setPatientConfigured(ok));
     }
   }, [ready, tokenAuto, patientCode, patientCardId, patientConfigured, setPatient]);
 
@@ -81,14 +81,14 @@ export function MemedPrescriptionPanel({
     }
     setDoctorTokenManual(manualToken.trim());
     if (patientCode) {
-      setPatient({ nome: patientCode, idExterno: patientCardId });
-      setPatientConfigured(true);
+      setPatient({ nome: patientCode, idExterno: patientCardId ?? patientCode, sexo: 'Não informado' })
+        .then((ok) => setPatientConfigured(ok));
     }
     setShowManualInput(false);
     toast.success('Token Memed configurado');
   };
 
-  const handleOpenMemed = () => {
+  const handleOpenMemed = async () => {
     if (!ready) {
       toast.warning('Módulo Memed ainda carregando…');
       return;
@@ -96,6 +96,14 @@ export function MemedPrescriptionPanel({
     if (!tokenAuto) {
       setShowManualInput(true);
       return;
+    }
+    if (patientCode && !patientConfigured) {
+      const ok = await setPatient({ nome: patientCode, idExterno: patientCardId ?? patientCode, sexo: 'Não informado' });
+      if (!ok) {
+        toast.error('Não foi possível configurar o paciente na Memed.');
+        return;
+      }
+      setPatientConfigured(true);
     }
     showPrescription();
   };
