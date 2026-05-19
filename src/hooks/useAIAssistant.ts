@@ -12,6 +12,25 @@ export interface Message {
 
 const AI_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-config-assistant`;
 
+type AssistantPayload = {
+  content?: string;
+  response?: string;
+  answer?: string;
+  message?: string | { content?: string };
+  choices?: Array<{ message?: { content?: string }; delta?: { content?: string } }>;
+};
+
+function extractAssistantText(payload: AssistantPayload): string {
+  if (typeof payload.content === 'string') return payload.content;
+  if (typeof payload.response === 'string') return payload.response;
+  if (typeof payload.answer === 'string') return payload.answer;
+  if (typeof payload.message === 'string') return payload.message;
+  if (typeof payload.message?.content === 'string') return payload.message.content;
+
+  const choice = payload.choices?.[0];
+  return choice?.message?.content || choice?.delta?.content || '';
+}
+
 export function useAIAssistant() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -39,6 +58,7 @@ export function useAIAssistant() {
     let assistantContent = '';
 
     const updateAssistant = (chunk: string) => {
+      if (!chunk) return;
       assistantContent += chunk;
       setMessages(prev => {
         const last = prev[prev.length - 1];
@@ -60,6 +80,10 @@ export function useAIAssistant() {
     };
 
     try {
+      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+        throw new Error('Configuração do Supabase ausente no ambiente.');
+      }
+
       const conversationHistory = [...messages, userMessage].map(m => ({
         role: m.role,
         content: m.content,
@@ -77,6 +101,7 @@ export function useAIAssistant() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'text/event-stream, application/json, text/plain',
           Authorization: `Bearer ${accessToken}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           'x-idempotency-key': userMessage.id,
@@ -85,28 +110,72 @@ export function useAIAssistant() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorText = await response.text().catch(() => '');
+        let errorData: { error?: string; message?: string } = {};
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch {
+          errorData = { message: errorText };
+        }
+
         if (response.status === 429) {
           toast.error('Limite de requisições. Aguarde um momento.');
         } else if (response.status === 402) {
           setPaywallOpen(true);
-          toast.error(errorData.error || 'Cota grátis esgotada. Compre créditos via PIX.');
+          toast.error(errorData.error || errorData.message || 'Cota grátis esgotada. Compre créditos via PIX.');
         } else if (response.status === 401) {
           toast.error('Faça login para usar o assistente.');
         } else {
-          toast.error(errorData.error || 'Falha ao obter resposta da IA');
+          toast.error(errorData.error || errorData.message || 'Falha ao obter resposta da IA');
         }
         setIsLoading(false);
         return;
       }
 
+      const contentType = response.headers.get('content-type') || '';
+
+      if (!contentType.includes('text/event-stream')) {
+        const raw = await response.text();
+        if (!raw.trim()) throw new Error('Resposta vazia da IA.');
+
+        try {
+          const parsed = JSON.parse(raw) as AssistantPayload;
+          const content = extractAssistantText(parsed);
+          updateAssistant(content || raw);
+        } catch {
+          updateAssistant(raw);
+        }
+
+        return;
+      }
+
       const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
+      if (!reader) throw new Error('Resposta da IA sem corpo de streaming.');
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let doneSignal = false;
 
-      while (true) {
+      const consumeSseLine = (line: string) => {
+        const cleaned = line.endsWith('\r') ? line.slice(0, -1) : line;
+        if (cleaned.startsWith(':') || cleaned.trim() === '') return;
+        if (!cleaned.startsWith('data:')) return;
+
+        const jsonStr = cleaned.slice(5).trim();
+        if (jsonStr === '[DONE]') {
+          doneSignal = true;
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(jsonStr) as AssistantPayload;
+          updateAssistant(extractAssistantText(parsed));
+        } catch {
+          // Ignore malformed partial chunks instead of killing the full answer.
+        }
+      };
+
+      while (!doneSignal) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -114,43 +183,23 @@ export function useAIAssistant() {
 
         let newlineIndex: number;
         while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          let line = buffer.slice(0, newlineIndex);
+          const line = buffer.slice(0, newlineIndex);
           buffer = buffer.slice(newlineIndex + 1);
-
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') break;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) updateAssistant(content);
-          } catch {
-            buffer = line + '\n' + buffer;
-            break;
-          }
+          consumeSseLine(line);
+          if (doneSignal) break;
         }
       }
 
-      // Flush remaining buffer
-      if (buffer.trim()) {
-        for (const raw of buffer.split('\n')) {
-          if (!raw || raw.startsWith(':') || !raw.startsWith('data: ')) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) updateAssistant(content);
-          } catch { /* no-op */ }
-        }
+      if (buffer.trim() && !doneSignal) {
+        buffer.split('\n').forEach(consumeSseLine);
+      }
+
+      if (!assistantContent.trim()) {
+        throw new Error('A IA respondeu, mas nenhum texto foi recebido pelo frontend.');
       }
     } catch (error) {
       console.error('AI assistant error:', error);
-      toast.error('Failed to communicate with AI assistant');
+      toast.error(error instanceof Error ? error.message : 'Falha ao comunicar com o assistente de IA');
     } finally {
       setIsLoading(false);
     }
