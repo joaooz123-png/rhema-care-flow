@@ -1,0 +1,75 @@
+name: Living Library — Growth Pulse
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 9 * * 1'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  growth-pulse:
+    name: Create weekly growth agenda
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build growth agenda
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const catalogPath = 'docs/living-library/catalog.json';
+          const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+          const openItems = catalog.items.filter((item) => item.status !== 'published' && item.status !== 'deprecated');
+          const priority = openItems.slice(0, 8);
+
+          const lines = [];
+          lines.push('# Living Library — pauta semanal de crescimento');
+          lines.push('');
+          lines.push(`Data: ${new Date().toISOString().slice(0, 10)}`);
+          lines.push('');
+          lines.push('## Objetivo');
+          lines.push('');
+          lines.push('Transformar conhecimento acumulado do Rhema Care Flow em documentacao, issues ou PRs pequenos.');
+          lines.push('');
+          lines.push('## Sementes priorizadas');
+          lines.push('');
+          for (const item of priority) {
+            lines.push(`### ${item.title}`);
+            lines.push('');
+            lines.push(`- ID: \`${item.id}\``);
+            lines.push(`- Categoria: ${item.category}`);
+            lines.push(`- Status: ${item.status}`);
+            lines.push(`- Modulo: ${item.module}`);
+            lines.push(`- Resumo: ${item.summary}`);
+            lines.push(`- Validacao: ${item.validation}`);
+            lines.push(`- Proximo passo: ${item.next_step}`);
+            lines.push('');
+          }
+          lines.push('## Tarefa do Builder Agent');
+          lines.push('');
+          lines.push('- Escolher 1 item pequeno.');
+          lines.push('- Criar branch propria.');
+          lines.push('- Implementar ou documentar apenas aquela unidade.');
+          lines.push('- Abrir PR pequeno para `mainn`.');
+          lines.push('');
+          lines.push('## Tarefa do Auditor Agent');
+          lines.push('');
+          lines.push('- Verificar CI.');
+          lines.push('- Verificar UX primaria.');
+          lines.push('- Verificar privacidade e Supabase/RLS se aplicavel.');
+          lines.push('- Solicitar mudancas se houver risco.');
+          lines.push('');
+          fs.writeFileSync('living-library-growth-agenda.md', lines.join('\n'));
+          NODE
+
+      - name: Open growth issue
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: 'Living Library: pauta semanal de crescimento'
+          content-filepath: living-library-growth-agenda.md
+          labels: living-library, agent-builder
