@@ -11,6 +11,7 @@ interface ExpandableContentProps {
   moreLabel?: string;
   lessLabel?: string;
   stopPropagation?: boolean;
+  fade?: boolean;
 }
 
 export function ExpandableContent({
@@ -22,13 +23,23 @@ export function ExpandableContent({
   moreLabel = 'Ver mais',
   lessLabel = 'Ver menos',
   stopPropagation = false,
+  fade = true,
 }: ExpandableContentProps) {
   const [expanded, setExpanded] = useState(false);
+  const isCollapsed = showWhen && !expanded;
 
   return (
-    <div className={cn('min-w-0', className)}>
-      <div className={cn(showWhen && (expanded ? expandedClassName : collapsedClassName))}>
+    <div className={cn('min-w-0 max-w-full', className)}>
+      <div
+        className={cn(
+          'relative min-w-0 max-w-full break-words',
+          showWhen && (expanded ? expandedClassName : collapsedClassName),
+        )}
+      >
         {children}
+        {fade && isCollapsed && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-muted to-transparent" />
+        )}
       </div>
       {showWhen && (
         <button
