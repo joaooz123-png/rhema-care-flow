@@ -123,6 +123,12 @@ export function PrescriptionList({ patientId, patientCode }: PrescriptionListPro
 
   return (
     <div className="space-y-5">
+      {/* Painel Memed — mesma rota/SDK usada na teleconsulta */}
+      <MemedPrescriptionPanel
+        patientCode={patientCode}
+        patientCardId={patientId}
+      />
+
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
