@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { useAIAssistant, Message } from '@/hooks/useAIAssistant';
 import { PaywallDialog } from '@/components/billing/PaywallDialog';
 import { useAICredits } from '@/hooks/useAICredits';
+import { ExpandableContent } from '@/components/ui/ExpandableText';
 import { format } from 'date-fns';
 
 const QUICK_PROMPTS = [
@@ -259,31 +260,27 @@ function MessageBubble({ message }: { message: Message }) {
               : 'bg-muted prose prose-sm dark:prose-invert max-w-none'
           )}
         >
-          {isUser ? (
-            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-          ) : (
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                ul: ({ children }) => <ul className="mb-2 list-disc pl-4">{children}</ul>,
-                ol: ({ children }) => <ol className="mb-2 list-decimal pl-4">{children}</ol>,
-                li: ({ children }) => <li className="mb-1">{children}</li>,
-                h1: ({ children }) => <h1 className="text-lg font-bold mb-2">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-base font-bold mb-2">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
-                code: ({ children }) => (
-                  <code className="bg-background/50 px-1 py-0.5 rounded text-xs">{children}</code>
-                ),
-                pre: ({ children }) => (
-                  <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto mb-2">
-                    {children}
-                  </pre>
-                ),
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
-          )}
+          <ExpandableContent showWhen={message.content.length > 900} collapsedClassName="max-h-72 overflow-hidden" expandedClassName="max-h-[55vh] overflow-y-auto pr-2">
+            {isUser ? (
+              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+            ) : (
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  ul: ({ children }) => <ul className="mb-2 list-disc pl-4">{children}</ul>,
+                  ol: ({ children }) => <ol className="mb-2 list-decimal pl-4">{children}</ol>,
+                  li: ({ children }) => <li className="mb-1">{children}</li>,
+                  h1: ({ children }) => <h1 className="text-lg font-bold mb-2">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-base font-bold mb-2">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
+                  code: ({ children }) => <code className="bg-background/50 px-1 py-0.5 rounded text-xs">{children}</code>,
+                  pre: ({ children }) => <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto mb-2">{children}</pre>,
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            )}
+          </ExpandableContent>
         </div>
         <span className="text-xs text-muted-foreground mt-1">
           {format(message.timestamp, 'HH:mm')}
