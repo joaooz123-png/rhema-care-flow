@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -75,8 +75,7 @@ export default function AIAssistant() {
   return (
     <AppLayout>
       <div className="container max-w-5xl py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Bot className="h-7 w-7 text-primary" />
@@ -111,7 +110,6 @@ export default function AIAssistant() {
           onSuccess={refreshCredits}
         />
 
-        {/* Main Chat Area */}
         <Card className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -126,7 +124,6 @@ export default function AIAssistant() {
           </CardHeader>
 
           <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
-            {/* Messages */}
             <ScrollArea ref={scrollRef} className="flex-1 p-4">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6">
@@ -137,7 +134,6 @@ export default function AIAssistant() {
                     explain features, and guide you through best practices.
                   </p>
 
-                  {/* Quick prompts */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full max-w-lg">
                     {QUICK_PROMPTS.map((item) => (
                       <Button
@@ -176,7 +172,6 @@ export default function AIAssistant() {
               )}
             </ScrollArea>
 
-            {/* Input */}
             <div className="p-4 border-t bg-muted/30 space-y-3">
               {isLocked && credits && (
                 <Alert variant="destructive" className="border-destructive/40">
@@ -241,48 +236,73 @@ export default function AIAssistant() {
 
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === 'user';
+  const [expanded, setExpanded] = useState(false);
+  const isLongMessage = message.content.length > 900 || message.content.split('\n').length > 12;
+  const shouldCollapse = !expanded && isLongMessage;
 
   return (
     <div className={cn('flex items-start gap-3', isUser && 'flex-row-reverse')}>
-      <Avatar className={cn('h-8 w-8', isUser ? 'bg-secondary' : 'bg-primary/10')}>
+      <Avatar className={cn('h-8 w-8 shrink-0', isUser ? 'bg-secondary' : 'bg-primary/10')}>
         <AvatarFallback>
           {isUser ? 'U' : <Bot className="h-4 w-4 text-primary" />}
         </AvatarFallback>
       </Avatar>
 
-      <div className={cn('flex flex-col max-w-[80%]', isUser && 'items-end')}>
+      <div className={cn('flex flex-col max-w-[min(80%,720px)] min-w-0', isUser && 'items-end')}>
         <div
           className={cn(
-            'rounded-lg px-4 py-2',
+            'rounded-lg px-4 py-2 min-w-0 max-w-full break-words',
             isUser
               ? 'bg-primary text-primary-foreground'
               : 'bg-muted prose prose-sm dark:prose-invert max-w-none'
           )}
         >
-          {isUser ? (
-            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-          ) : (
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                ul: ({ children }) => <ul className="mb-2 list-disc pl-4">{children}</ul>,
-                ol: ({ children }) => <ol className="mb-2 list-decimal pl-4">{children}</ol>,
-                li: ({ children }) => <li className="mb-1">{children}</li>,
-                h1: ({ children }) => <h1 className="text-lg font-bold mb-2">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-base font-bold mb-2">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
-                code: ({ children }) => (
-                  <code className="bg-background/50 px-1 py-0.5 rounded text-xs">{children}</code>
-                ),
-                pre: ({ children }) => (
-                  <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto mb-2">
-                    {children}
-                  </pre>
-                ),
-              }}
+          <div className={cn('relative min-w-0', shouldCollapse && 'max-h-72 overflow-hidden')}>
+            {isUser ? (
+              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+            ) : (
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p className="mb-2 last:mb-0 break-words">{children}</p>,
+                  ul: ({ children }) => <ul className="mb-2 list-disc pl-4">{children}</ul>,
+                  ol: ({ children }) => <ol className="mb-2 list-decimal pl-4">{children}</ol>,
+                  li: ({ children }) => <li className="mb-1 break-words">{children}</li>,
+                  h1: ({ children }) => <h1 className="text-lg font-bold mb-2 break-words">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-base font-bold mb-2 break-words">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-sm font-bold mb-1 break-words">{children}</h3>,
+                  code: ({ children }) => (
+                    <code className="bg-background/50 px-1 py-0.5 rounded text-xs break-words whitespace-pre-wrap">
+                      {children}
+                    </code>
+                  ),
+                  pre: ({ children }) => (
+                    <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto mb-2 max-w-full whitespace-pre-wrap break-words">
+                      {children}
+                    </pre>
+                  ),
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            )}
+            {shouldCollapse && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-muted to-transparent" />
+            )}
+          </div>
+
+          {isLongMessage && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded((value) => !value)}
+              className={cn(
+                'mt-2 h-7 px-2 text-xs',
+                isUser ? 'text-primary-foreground hover:text-primary-foreground' : 'text-primary'
+              )}
             >
-              {message.content}
-            </ReactMarkdown>
+              {expanded ? 'Ver menos' : 'Ver mais'}
+            </Button>
           )}
         </div>
         <span className="text-xs text-muted-foreground mt-1">
