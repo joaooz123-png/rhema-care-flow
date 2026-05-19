@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { PrescriptionComposer } from './PrescriptionComposer';
 import { PrescriptionCard } from './PrescriptionCard';
 import { PrescriptionSignDialog } from './PrescriptionSignDialog';
+import { MemedPrescriptionPanel } from '@/components/teleconsulta/MemedPrescriptionPanel';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import type { PrescriptionItem } from '@/hooks/usePrescriptions';
 import { Button } from '@/components/ui/button';
