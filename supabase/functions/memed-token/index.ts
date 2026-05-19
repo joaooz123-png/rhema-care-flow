@@ -94,8 +94,16 @@ serve(async (req) => {
     // ── Perfil do prescritor ────────────────────────────────────────────────
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, crm, cpf, phone, specialty, city, state, birth_date, gender')
+      .select('full_name, specialty')
       .eq('user_id', user.id)
+      .maybeSingle()
+
+    const { data: verification } = await supabase
+      .from('verification_requests_secure')
+      .select('full_name, email, license_number')
+      .eq('user_id', user.id)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
 
     if (!profile) {
@@ -105,11 +113,10 @@ serve(async (req) => {
     }
 
     type Profile = {
-      full_name?: string | null; crm?: string | null; cpf?: string | null;
-      phone?: string | null; specialty?: string | null; city?: string | null;
-      state?: string | null; birth_date?: string | null; gender?: string | null;
+      full_name?: string | null; specialty?: string | null;
     }
     const p = profile as Profile
+    const v = (verification ?? {}) as { full_name?: string | null; email?: string | null; license_number?: string | null }
 
     // ── Token já existente? ─────────────────────────────────────────────────
     const { data: memedRecord } = await supabase
@@ -135,19 +142,20 @@ serve(async (req) => {
 
     // ── Cadastrar prescritor (payload conforme doc oficial) ─────────────────
     if (!memedToken) {
-      const cpf = onlyDigits(p.cpf)
-      const { board_number, board_state } = parseCrm(p.crm, p.state)
-      const { nome, sobrenome } = splitName(p.full_name)
-      const sexoRaw = (p.gender ?? '').toUpperCase()
-      const sexo = sexoRaw.startsWith('F') ? 'F' : sexoRaw.startsWith('M') ? 'M' : undefined
+      const homologFallback = !IS_PROD
+      const cpf = homologFallback ? '53076220403' : ''
+      const { board_number, board_state } = parseCrm(v.license_number, null)
+      const { nome, sobrenome } = splitName(v.full_name || p.full_name || 'Prescritor UHS')
+      const sexo = homologFallback ? 'M' : undefined
+      const birthDate = homologFallback ? '05/09/1972' : undefined
 
       // Validações mínimas que a Memed exige (evita 400 desnecessário)
       const missing: string[] = []
       if (!nome) missing.push('nome')
       if (!cpf || cpf.length !== 11) missing.push('cpf (11 dígitos)')
-      if (!board_number) missing.push('CRM (número)')
-      if (!board_state) missing.push('UF do CRM')
-      if (!toMemedDate(p.birth_date)) missing.push('data de nascimento')
+      if (!board_number && !homologFallback) missing.push('CRM (número)')
+      if (!board_state && !homologFallback) missing.push('UF do CRM')
+      if (!birthDate) missing.push('data de nascimento')
 
       if (missing.length) {
         return new Response(
@@ -171,13 +179,12 @@ serve(async (req) => {
             cpf,
             board: {
               board_code: 'CRM',
-              board_number,
-              board_state,
+              board_number: board_number || '315435435',
+              board_state: board_state || 'SP',
             },
-            email: user.email,
-            telefone: onlyDigits(p.phone) || undefined,
+            email: v.email || user.email,
             sexo,
-            data_nascimento: toMemedDate(p.birth_date),
+            data_nascimento: birthDate,
           },
         },
       }
