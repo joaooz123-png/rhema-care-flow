@@ -14,6 +14,7 @@ import {
   PrescriptionDebugPanel,
   isPrescriptionDebugEnabled,
 } from './PrescriptionDebugPanel';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import { generatePrescriptionPdf } from '@/lib/prescriptionPdfExport';
 import type { Prescription } from '@/hooks/usePrescriptions';
 import {
@@ -134,14 +135,15 @@ export function PrescriptionCard({ rx, patientCode, onSign, onCancel, onDelete, 
                       {[item.dose, item.route, item.frequency, item.duration].filter(Boolean).join(' · ')}
                     </span>
                     {item.instructions && (
-                      <p className="text-xs text-muted-foreground mt-0.5">↳ {item.instructions}</p>
+                      <ExpandableText text={`↳ ${item.instructions}`} threshold={120} textClassName="text-xs text-muted-foreground mt-0.5" />
                     )}
                   </div>
                 </div>
               ))}
               {rx.notes && (
                 <div className="border-t border-border pt-2 mt-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Obs:</span> {rx.notes}
+                  <span className="font-medium text-foreground">Obs:</span>
+                  <ExpandableText text={rx.notes} threshold={160} className="mt-1" textClassName="text-xs text-muted-foreground" />
                 </div>
               )}
               {/* Quick sign button for drafts */}

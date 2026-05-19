@@ -9,6 +9,7 @@ import { PrescriptionCard } from './PrescriptionCard';
 import { PrescriptionSignDialog } from './PrescriptionSignDialog';
 import { MemedPrescriptionPanel } from '@/components/teleconsulta/MemedPrescriptionPanel';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
+import { useUserRole } from '@/hooks/useUserRole';
 import type { PrescriptionItem } from '@/hooks/usePrescriptions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ interface PrescriptionListProps {
 }
 
 export function PrescriptionList({ patientId, patientCode }: PrescriptionListProps) {
+  const { isAdmin } = useUserRole();
   const {
     prescriptions, loading,
     lastError, clearLastError,
@@ -160,10 +162,14 @@ export function PrescriptionList({ patientId, patientCode }: PrescriptionListPro
             <p className="font-semibold text-destructive">
               Falha em prescrição ({banner.stage})
             </p>
-            <p className="text-destructive/90 break-words">{banner.message}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Detalhes completos no console do navegador (filtre por <code>[Rx:</code>).
+            <p className="text-destructive/90 break-words">
+              {isAdmin ? banner.message : 'A prescrição digital ficou temporariamente indisponível. Tente novamente em instantes.'}
             </p>
+            {isAdmin && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Detalhes completos no console do navegador (filtre por <code>[Rx:</code>).
+              </p>
+            )}
           </div>
           <button
             onClick={banner.onDismiss}

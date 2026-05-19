@@ -47,6 +47,7 @@ import { PullToRefreshIndicator } from '@/components/ui/PullToRefreshIndicator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CommentThread } from '@/components/knowledge/CommentThread';
 import { exportContentAsPdf } from '@/lib/contentPdfExport';
+import { ExpandableText } from '@/components/ui/ExpandableText';
 import {
   Sheet,
   SheetContent,
@@ -297,12 +298,15 @@ export default function KnowledgeLibrary() {
                 )}
               </div>
 
-              <p className={cn(
-                'text-sm text-muted-foreground mt-2',
-                isExpanded ? '' : 'line-clamp-2'
-              )}>
-                {contribution.content}
-              </p>
+              <ExpandableText
+                text={contribution.content}
+                threshold={220}
+                stopPropagation
+                className="mt-2"
+                textClassName="text-sm text-muted-foreground"
+                collapsedClassName={isExpanded ? 'max-h-44 overflow-hidden' : 'max-h-12 overflow-hidden'}
+                expandedClassName="max-h-96 overflow-y-auto pr-2"
+              />
 
               {contribution.resource_url && isExpanded && (
                 <a
