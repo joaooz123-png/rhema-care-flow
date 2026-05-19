@@ -71,7 +71,8 @@ async function callLovable(body: OAIBody): Promise<ProviderResult> {
   const upstream = await fetch(LOVABLE_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "Lovable-API-Key": apiKey,
+      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
