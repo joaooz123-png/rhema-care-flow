@@ -1,14 +1,14 @@
-name: CI — Type Check & Lint
+name: CI — Type Check, Lint & Build
 
 on:
   pull_request:
-    branches: [main]
+    branches: [mainn]
   push:
-    branches: [main]
+    branches: [mainn]
 
 jobs:
   quality:
-    name: TypeScript + ESLint
+    name: TypeScript + ESLint + Build
     runs-on: ubuntu-latest
 
     steps:
@@ -29,6 +29,9 @@ jobs:
 
       - name: ESLint — zero errors required
         run: npx eslint src --ext .ts,.tsx --max-warnings 0 || npx eslint src --ext .ts,.tsx
+
+      - name: Unit tests
+        run: npm test -- --passWithNoTests
 
       - name: Build check
         run: npm run build
