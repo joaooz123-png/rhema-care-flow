@@ -13,12 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Plus, Trash2, ClipboardPlus, Save, PenLine, ChevronDown, ChevronUp, FlaskConical,
+  Plus, Trash2, ClipboardPlus, Save, PenLine, ChevronDown, ChevronUp, FlaskConical, Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PrescriptionItem } from '@/hooks/usePrescriptions';
 
-// ── Common drug suggestions ───────────────────────────────────────────────────
 const DRUG_SUGGESTIONS = [
   'Metotrexato', 'Prednisona', 'Hidroxicloroquina', 'Sulfassalazina', 'Leflunomida',
   'Adalimumabe', 'Etanercepte', 'Rituximabe', 'Tocilizumabe', 'Baricitinibe',
@@ -30,12 +29,6 @@ const ROUTE_OPTIONS = ['Oral', 'IV', 'IM', 'SC', 'Tópico', 'Inalatório', 'Subl
 const FREQ_OPTIONS  = ['1x ao dia', '2x ao dia', '3x ao dia', '4x ao dia', 'Em dias alternados', '1x por semana', 'Dose única'];
 const DUR_OPTIONS   = ['7 dias', '14 dias', '30 dias', '60 dias', '90 dias', 'Uso contínuo', 'Conforme necessário'];
 
-/**
- * Internal row representation. Each row carries a stable client-side `_id`
- * so React can track it across add/remove without leaking child state
- * (collapse flag, suggestion popover, focus) into the wrong row — that was
- * the root cause of fields appearing to revert or duplicate after edits.
- */
 type RowItem = PrescriptionItem & { _id: string };
 
 const newId = () =>
@@ -48,21 +41,14 @@ const emptyItem = (): RowItem => ({
   drug: '', dose: '', route: 'Oral', frequency: '1x ao dia', duration: '30 dias', instructions: '',
 });
 
-
 interface PrescriptionComposerProps {
   patientCode: string;
   onSaveDraft: (items: PrescriptionItem[], notes: string, cid10: string) => Promise<void>;
   onSaveAndSign: (items: PrescriptionItem[], notes: string, cid10: string) => Promise<void>;
   saving?: boolean;
-  /**
-   * Fires whenever the composer transitions between "clean" (matches the
-   * pristine empty state) and "dirty" (has user-typed values). The host
-   * uses this to gate the close action with an unsaved-changes prompt.
-   */
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-/** True when the user has typed anything that would be lost on close. */
 function isComposerDirty(items: RowItem[], cid10: string, notes: string) {
   if (cid10.trim() || notes.trim()) return true;
   return items.some(it =>
@@ -73,12 +59,13 @@ function isComposerDirty(items: RowItem[], cid10: string, notes: string) {
 type RowErrors = { drug?: string; dose?: string; frequency?: string };
 
 function ItemRow({
-  item, index, onChange, onRemove, isOnly, errors, showErrors,
+  item, index, onChange, onRemove, isOnly, errors, showErrors, disabled,
 }: {
   item: RowItem; index: number;
   onChange: (field: keyof PrescriptionItem, value: string) => void;
   onRemove: () => void; isOnly: boolean;
   errors: RowErrors; showErrors: boolean;
+  disabled?: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [showSugg, setShowSugg] = useState(false);
@@ -86,9 +73,6 @@ function ItemRow({
     item.drug && d.toLowerCase().includes(item.drug.toLowerCase()) && d !== item.drug,
   );
 
-  // Only surface field errors after the user has attempted to save at least
-  // once (`showErrors`), so a freshly added empty row doesn't immediately
-  // light up red.
   const err = showErrors ? errors : {};
   const hasAnyErr = !!(err.drug || err.dose || err.frequency);
 
@@ -97,7 +81,6 @@ function ItemRow({
       'rounded-xl border bg-card transition-colors',
       hasAnyErr ? 'border-destructive/60' : 'border-border',
     )}>
-      {/* Item header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
           <div className={cn(
@@ -115,7 +98,7 @@ function ItemRow({
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
           {!isOnly && (
-            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onRemove}>
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onRemove} disabled={disabled}>
               <Trash2 className="h-4 w-4" />
             </Button>
           )}
@@ -124,7 +107,6 @@ function ItemRow({
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-          {/* Drug name */}
           <div className="relative">
             <Label className="text-xs">Medicamento *</Label>
             <Input
@@ -134,10 +116,11 @@ function ItemRow({
               onFocus={() => setShowSugg(true)}
               placeholder="Nome do medicamento ou princípio ativo"
               aria-invalid={!!err.drug}
+              disabled={disabled}
               className={cn('mt-1', err.drug && 'border-destructive focus-visible:ring-destructive')}
             />
             {err.drug && <p className="mt-1 text-xs text-destructive">{err.drug}</p>}
-            {showSugg && filtered.length > 0 && (
+            {showSugg && !disabled && filtered.length > 0 && (
               <div className="absolute z-20 top-full mt-1 left-0 right-0 rounded-lg border bg-popover shadow-md max-h-36 overflow-y-auto">
                 {filtered.slice(0, 6).map(d => (
                   <button key={d} className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
@@ -149,7 +132,6 @@ function ItemRow({
             )}
           </div>
 
-          {/* Dose + Route */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Dose *</Label>
@@ -158,20 +140,20 @@ function ItemRow({
                 onChange={e => onChange('dose', e.target.value)}
                 placeholder="ex: 7,5 mg"
                 aria-invalid={!!err.dose}
+                disabled={disabled}
                 className={cn('mt-1', err.dose && 'border-destructive focus-visible:ring-destructive')}
               />
               {err.dose && <p className="mt-1 text-xs text-destructive">{err.dose}</p>}
             </div>
             <div>
               <Label className="text-xs">Via</Label>
-              <select value={item.route} onChange={e => onChange('route', e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <select value={item.route} onChange={e => onChange('route', e.target.value)} disabled={disabled}
+                className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50">
                 {ROUTE_OPTIONS.map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
           </div>
 
-          {/* Frequency + Duration */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Frequência *</Label>
@@ -179,8 +161,9 @@ function ItemRow({
                 value={item.frequency}
                 onChange={e => onChange('frequency', e.target.value)}
                 aria-invalid={!!err.frequency}
+                disabled={disabled}
                 className={cn(
-                  'mt-1 w-full h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring',
+                  'mt-1 w-full h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
                   err.frequency ? 'border-destructive focus:ring-destructive' : 'border-input',
                 )}>
                 <option value="">Selecione…</option>
@@ -190,17 +173,16 @@ function ItemRow({
             </div>
             <div>
               <Label className="text-xs">Duração</Label>
-              <select value={item.duration} onChange={e => onChange('duration', e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <select value={item.duration} onChange={e => onChange('duration', e.target.value)} disabled={disabled}
+                className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50">
                 {DUR_OPTIONS.map(d => <option key={d}>{d}</option>)}
               </select>
             </div>
           </div>
 
-          {/* Instructions */}
           <div>
             <Label className="text-xs">Instruções especiais</Label>
-            <Input value={item.instructions} onChange={e => onChange('instructions', e.target.value)}
+            <Input value={item.instructions} onChange={e => onChange('instructions', e.target.value)} disabled={disabled}
               placeholder="ex: tomar em jejum, após as refeições…" className="mt-1" />
           </div>
         </div>
@@ -209,14 +191,9 @@ function ItemRow({
   );
 }
 
-/** Strip the internal `_id` so callers receive the clean payload shape. */
 const stripId = (rows: RowItem[]): PrescriptionItem[] =>
   rows.map(({ _id, ...rest }) => rest);
 
-
-// Per-row validation rules. Drug, dose and frequency are mandatory because
-// without them a prescription cannot be safely dispensed. Returns a map of
-// row `_id` → { field: message }.
 function validateItems(items: RowItem[]): Record<string, RowErrors> {
   const out: Record<string, RowErrors> = {};
   items.forEach((it) => {
@@ -229,11 +206,6 @@ function validateItems(items: RowItem[]): Record<string, RowErrors> {
   return out;
 }
 
-
-// ── Autosave (localStorage) ──────────────────────────────────────────────────
-// Persist the composer's working state per patient so meds, dose, frequency,
-// CID-10 and notes survive accidental dialog closes, refreshes, or tab
-// switches. Cleared on successful save/sign.
 const AUTOSAVE_PREFIX = 'rx-composer-draft:';
 const AUTOSAVE_VERSION = 1;
 const autosaveKey = (patientCode: string) => `${AUTOSAVE_PREFIX}${patientCode}`;
@@ -273,12 +245,9 @@ function clearAutosave(patientCode: string) {
   try { localStorage.removeItem(autosaveKey(patientCode)); } catch { /* noop */ }
 }
 
-
 export function PrescriptionComposer({
   patientCode, onSaveDraft, onSaveAndSign, saving = false, onDirtyChange,
 }: PrescriptionComposerProps) {
-  // Restore any in-progress draft for this patient on first render so users
-  // never lose typed meds/frequencies when the dialog is reopened.
   const [items, setItems] = useState<RowItem[]>(() => {
     const restored = readAutosave(patientCode);
     return restored && restored.items.length > 0 ? restored.items : [emptyItem()];
@@ -286,19 +255,16 @@ export function PrescriptionComposer({
   const [cid10, setCid10] = useState(() => readAutosave(patientCode)?.cid10 ?? '');
   const [notes, setNotes] = useState(() => readAutosave(patientCode)?.notes ?? '');
   const [restoredAt] = useState<number | null>(() => readAutosave(patientCode)?.savedAt ?? null);
-  // Errors are only displayed after the first save attempt so users aren't
-  // confronted with red fields on a brand-new empty form.
   const [showErrors, setShowErrors] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<'draft' | 'sign' | null>(null);
 
-  // Notify the host every time the dirty state flips, so it can decide
-  // whether to show an unsaved-changes confirmation on close.
+  const isSubmitting = saving || submittingAction !== null;
+
   const dirty = isComposerDirty(items, cid10, notes);
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
 
-  // Debounced autosave: writes the working draft whenever the user edits
-  // anything. Empty/pristine forms clear the slot to avoid stale leftovers.
   useEffect(() => {
     const t = setTimeout(() => {
       if (dirty) {
@@ -318,33 +284,45 @@ export function PrescriptionComposer({
     clearAutosave(patientCode);
   };
 
-  const addItem = () => setItems(v => [...v, emptyItem()]);
+  const addItem = () => {
+    if (isSubmitting) return;
+    setItems(v => [...v, emptyItem()]);
+  };
 
-  const removeItem = (id: string) =>
+  const removeItem = (id: string) => {
+    if (isSubmitting) return;
     setItems(v => v.filter(item => item._id !== id));
+  };
 
-  const updateItem = (id: string, field: keyof PrescriptionItem, value: string) =>
+  const updateItem = (id: string, field: keyof PrescriptionItem, value: string) => {
+    if (isSubmitting) return;
     setItems(v => v.map(item => item._id === id ? { ...item, [field]: value } : item));
+  };
 
   const errorsByRow = validateItems(items);
   const errorCount = Object.keys(errorsByRow).length;
   const isValid = errorCount === 0;
 
-  const handleSaveDraft = async () => {
+  const submitPrescription = async (action: 'draft' | 'sign') => {
+    if (isSubmitting) return;
     if (!isValid) { setShowErrors(true); return; }
-    const payload = stripId(items);
-    await onSaveDraft(payload, notes, cid10);
-    resetForm();
-  };
 
-  const handleSaveAndSign = async () => {
-    if (!isValid) { setShowErrors(true); return; }
     const payload = stripId(items);
-    await onSaveAndSign(payload, notes, cid10);
-    resetForm();
+    setSubmittingAction(action);
+    try {
+      if (action === 'draft') {
+        await onSaveDraft(payload, notes, cid10);
+      } else {
+        await onSaveAndSign(payload, notes, cid10);
+      }
+      resetForm();
+    } finally {
+      setSubmittingAction(null);
+    }
   };
 
   const discardDraft = () => {
+    if (isSubmitting) return;
     clearAutosave(patientCode);
     setItems([emptyItem()]);
     setCid10('');
@@ -370,26 +348,24 @@ export function PrescriptionComposer({
               Rascunho restaurado automaticamente
               <span className="text-muted-foreground"> · {new Date(restoredAt).toLocaleString('pt-BR')}</span>
             </span>
-            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={discardDraft}>
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={discardDraft} disabled={isSubmitting}>
               Descartar
             </Button>
           </div>
         )}
 
-        {/* CID-10 */}
         <div>
           <Label className="text-xs font-medium">CID-10 (diagnóstico)</Label>
           <Input value={cid10} onChange={e => setCid10(e.target.value.toUpperCase())}
-            placeholder="ex: M05.3 – Artrite Reumatoide" className="mt-1" maxLength={10} />
+            placeholder="ex: M05.3 – Artrite Reumatoide" className="mt-1" maxLength={10} disabled={isSubmitting} />
         </div>
 
         <Separator />
 
-        {/* Items */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-semibold">Medicamentos</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addItem} className="gap-1.5" disabled={saving}>
+            <Button type="button" variant="outline" size="sm" onClick={addItem} className="gap-1.5" disabled={isSubmitting}>
               <Plus className="h-3.5 w-3.5" /> Adicionar item
             </Button>
           </div>
@@ -405,6 +381,7 @@ export function PrescriptionComposer({
                   isOnly={items.length === 1}
                   errors={errorsByRow[item._id] ?? {}}
                   showErrors={showErrors}
+                  disabled={isSubmitting}
                 />
               ))}
             </div>
@@ -413,15 +390,13 @@ export function PrescriptionComposer({
 
         <Separator />
 
-        {/* Notes */}
         <div>
           <Label className="text-xs font-medium">Observações gerais</Label>
           <Textarea value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="Retorno em 30 dias, evitar exposição solar, monitorar hemograma…"
-            className="mt-1 min-h-[72px] resize-none" />
+            className="mt-1 min-h-[72px] resize-none" disabled={isSubmitting} />
         </div>
 
-        {/* Form-level error summary, visible only after a save attempt. */}
         {showErrors && !isValid && (
           <div
             role="alert"
@@ -431,22 +406,27 @@ export function PrescriptionComposer({
           </div>
         )}
 
-        {/* Actions */}
+        {isSubmitting && (
+          <p className="text-xs text-muted-foreground">
+            Salvando prescrição… mantenha esta janela aberta até a conclusão.
+          </p>
+        )}
+
         <div className="flex flex-col sm:flex-row gap-3 pt-1">
           <Button
             type="button" variant="outline" className="gap-2 flex-1"
-            disabled={saving}
-            onClick={handleSaveDraft}
+            disabled={isSubmitting}
+            onClick={() => submitPrescription('draft')}
           >
-            <Save className="h-4 w-4" />
+            {submittingAction === 'draft' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Salvar Rascunho
           </Button>
           <Button
             type="button" className="gap-2 flex-1 bg-gradient-to-r from-primary to-teal-500 hover:opacity-90"
-            disabled={saving}
-            onClick={handleSaveAndSign}
+            disabled={isSubmitting}
+            onClick={() => submitPrescription('sign')}
           >
-            <PenLine className="h-4 w-4" />
+            {submittingAction === 'sign' ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
             Salvar e Assinar
           </Button>
         </div>
@@ -454,4 +434,3 @@ export function PrescriptionComposer({
     </Card>
   );
 }
-
