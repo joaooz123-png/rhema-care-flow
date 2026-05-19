@@ -21,16 +21,22 @@ import {
   Shield,
   Settings,
   Wallet,
+  Power,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { canonicalize } from '@/lib/crypto';
 import { getExplorerUrl, formatSignature } from '@/lib/solana';
+import {
+  getUrvProgramPublicKey,
+  getUrvReadinessChecks,
+  isUrvChainActive,
+  isUrvMockMode,
+  URV_CHAIN_CONFIG,
+} from '@/config/urvChain';
 
 import idl from '@/idl/urv_privacy.json';
 
-// Replace with deployed Program ID after `anchor deploy`. Current value is Devnet placeholder.
-const PROGRAM_ID = new PublicKey('URVPr1vacy11111111111111111111111111111111');
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = URV_CHAIN_CONFIG.schemaVersion;
 
 // ============================================================================
 // Helper Functions
@@ -66,27 +72,37 @@ async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(hashBuffer);
 }
 
+function getProgramId(): PublicKey | null {
+  return getUrvProgramPublicKey();
+}
+
 /** Derive State PDA: ["state", admin] */
 function deriveStatePda(adminPk: PublicKey): [PublicKey, number] {
+  const programId = getProgramId();
+  if (!programId) throw new Error('URV Program ID invalido. Configure VITE_URV_PROGRAM_ID.');
   return PublicKey.findProgramAddressSync(
     [Buffer.from('state'), adminPk.toBuffer()],
-    PROGRAM_ID
+    programId
   );
 }
 
 /** Derive Record PDA: ["rec", owner, dataHash] */
 function deriveRecordPda(ownerPk: PublicKey, dataHash: Uint8Array): [PublicKey, number] {
+  const programId = getProgramId();
+  if (!programId) throw new Error('URV Program ID invalido. Configure VITE_URV_PROGRAM_ID.');
   return PublicKey.findProgramAddressSync(
     [Buffer.from('rec'), ownerPk.toBuffer(), Buffer.from(dataHash)],
-    PROGRAM_ID
+    programId
   );
 }
 
 /** Derive Update PDA: ["upd", statePda, newScoreHash] */
 function deriveUpdatePda(statePda: PublicKey, newScoreHash: Uint8Array): [PublicKey, number] {
+  const programId = getProgramId();
+  if (!programId) throw new Error('URV Program ID invalido. Configure VITE_URV_PROGRAM_ID.');
   return PublicKey.findProgramAddressSync(
     [Buffer.from('upd'), statePda.toBuffer(), Buffer.from(newScoreHash)],
-    PROGRAM_ID
+    programId
   );
 }
 
@@ -100,6 +116,10 @@ export function UrvDemo() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const { publicKey, signTransaction, signAllTransactions, connected } = wallet;
+  const readinessChecks = getUrvReadinessChecks();
+  const programId = getProgramId();
+  const chainActive = isUrvChainActive();
+  const mockMode = isUrvMockMode();
 
   // Form state
   const [uri, setUri] = useState('ipfs://example-ciphertext-uri');
@@ -113,30 +133,39 @@ export function UrvDemo() {
 
   // Create provider
   const provider = useMemo(() => {
-    if (!publicKey || !signTransaction || !signAllTransactions) return null;
+    if (!chainActive || mockMode || !publicKey || !signTransaction || !signAllTransactions) return null;
     return new AnchorProvider(
       connection,
       { publicKey, signTransaction, signAllTransactions } as any,
       { commitment: 'confirmed' }
     );
-  }, [connection, publicKey, signTransaction, signAllTransactions]);
+  }, [chainActive, mockMode, connection, publicKey, signTransaction, signAllTransactions]);
 
   // Create program instance
   const program = useMemo(() => {
-    if (!provider) return null;
-    // Check if IDL has real instructions (not placeholder)
+    if (!provider || !programId) return null;
     const idlData = idl as any;
     if (!idlData.instructions || idlData.instructions.length === 0) {
       console.warn('IDL is placeholder - replace with actual IDL after Anchor build');
       return null;
     }
     try {
-      return new Program(idlData, provider);
+      const normalizedIdl = { ...idlData, address: programId.toBase58() };
+      return new Program(normalizedIdl, provider);
     } catch (e) {
       console.error('Failed to create program:', e);
       return null;
     }
-  }, [provider]);
+  }, [provider, programId]);
+
+  const runMock = useCallback(async (label: string) => {
+    setIsProcessing(true);
+    setStatus({ type: 'pending', message: `Mock URV: ${label}...` });
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const fakeSig = `mock_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    setStatus({ type: 'success', message: `Mock URV concluido: ${label}`, signature: fakeSig });
+    setIsProcessing(false);
+  }, []);
 
   /**
    * Initialize global state account.
@@ -144,6 +173,7 @@ export function UrvDemo() {
    * Production: oracle should be a backend signer.
    */
   const initState = useCallback(async () => {
+    if (mockMode) return runMock('init_state');
     if (!program || !publicKey) {
       toast.error('Connect your wallet first');
       return;
@@ -187,13 +217,14 @@ export function UrvDemo() {
     } finally {
       setIsProcessing(false);
     }
-  }, [program, publicKey]);
+  }, [mockMode, runMock, program, publicKey]);
 
   /**
    * Create a new health record on-chain.
    * Uses canonical JSON + SHA-256 to derive data_hash and record PDA.
    */
   const createRecord = useCallback(async () => {
+    if (mockMode) return runMock('create_record');
     if (!program || !publicKey) {
       toast.error('Connect your wallet first');
       return;
@@ -251,7 +282,7 @@ export function UrvDemo() {
     } finally {
       setIsProcessing(false);
     }
-  }, [program, publicKey, uri]);
+  }, [mockMode, runMock, program, publicKey, uri]);
 
   /**
    * Post a score update with REAL chaining.
@@ -261,6 +292,7 @@ export function UrvDemo() {
    * 4. Derives update PDA: ["upd", statePda, new_score_hash]
    */
   const postScoreUpdate = useCallback(async () => {
+    if (mockMode) return runMock('post_score_update');
     if (!program || !publicKey) {
       toast.error('Connect your wallet first');
       return;
@@ -360,39 +392,83 @@ export function UrvDemo() {
     } finally {
       setIsProcessing(false);
     }
-  }, [program, publicKey, score, conf]);
+  }, [mockMode, runMock, program, publicKey, score, conf]);
 
-  const isProgramReady = !!program;
+  const isProgramReady = mockMode || !!program;
+  const canUseChain = chainActive && (mockMode || connected) && !isProcessing && isProgramReady;
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
-            URV Health Chain (Devnet MVP)
+            URV Health Chain
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            On-chain proof registry with chained score updates
+            Universal Solana matrix for proofs, score updates and auditability
           </p>
         </div>
         <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !h-9 !text-sm !rounded-md" />
       </div>
 
+      {/* Preset status */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Power className="h-4 w-4 text-primary" />
+            URV Matrix Preset
+          </CardTitle>
+          <CardDescription>
+            Canonical network settings inherited by every official derivative.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={chainActive ? 'default' : 'destructive'}>
+              {chainActive ? 'Enabled' : 'Off'}
+            </Badge>
+            <Badge variant="secondary">{URV_CHAIN_CONFIG.networkMode}</Badge>
+            <Badge variant="outline">Oracle: {URV_CHAIN_CONFIG.oracleMode}</Badge>
+            <Badge variant={URV_CHAIN_CONFIG.canonicalMatrix ? 'outline' : 'destructive'}>
+              {URV_CHAIN_CONFIG.canonicalMatrix ? 'Canonical Matrix' : 'Non-canonical'}
+            </Badge>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-2 text-xs">
+            {readinessChecks.map(check => (
+              <div key={check.id} className="flex items-center gap-2 rounded-md border px-2 py-1.5">
+                {check.ok ? <CheckCircle className="h-3.5 w-3.5 text-success" /> : <AlertCircle className="h-3.5 w-3.5 text-destructive" />}
+                <span>{check.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-md bg-muted/40 p-2 text-xs font-mono break-all">
+            Program ID: {URV_CHAIN_CONFIG.programId}<br />
+            RPC: {URV_CHAIN_CONFIG.clusterUrl}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Connection Status */}
-      <Alert variant={connected ? 'default' : 'destructive'}>
+      <Alert variant={chainActive && (connected || mockMode) ? 'default' : 'destructive'}>
         <Wallet className="h-4 w-4" />
-        <AlertTitle>{connected ? 'Wallet Connected' : 'Wallet Not Connected'}</AlertTitle>
+        <AlertTitle>
+          {!chainActive ? 'URV Chain Disabled' : mockMode ? 'Mock Mode Active' : connected ? 'Wallet Connected' : 'Wallet Not Connected'}
+        </AlertTitle>
         <AlertDescription>
-          {connected ? (
-            <span className="flex items-center gap-2">
+          {!chainActive ? (
+            'Ative VITE_URV_CHAIN_ENABLED e selecione VITE_URV_NETWORK_MODE para ligar a matriz URV.'
+          ) : mockMode ? (
+            'Modo mock ativo: os botões simulam a rede URV sem enviar transações para Solana.'
+          ) : connected ? (
+            <span className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="font-mono text-xs">
                 {publicKey?.toBase58().slice(0, 8)}...{publicKey?.toBase58().slice(-8)}
               </Badge>
-              <Badge variant="secondary">Devnet</Badge>
+              <Badge variant="secondary">{URV_CHAIN_CONFIG.networkMode}</Badge>
               {!isProgramReady && (
-                <Badge variant="destructive">IDL not loaded</Badge>
+                <Badge variant="destructive">IDL/program not ready</Badge>
               )}
             </span>
           ) : (
@@ -415,16 +491,16 @@ export function UrvDemo() {
             onChange={(e) => setUri(e.target.value)}
             placeholder="ipfs://... or https://..."
             className="font-mono text-sm"
-            disabled={!connected || isProcessing}
+            disabled={!chainActive || (!mockMode && !connected) || isProcessing}
           />
         </CardContent>
       </Card>
 
       {/* Action Buttons */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Button
           onClick={initState}
-          disabled={!connected || isProcessing || !isProgramReady}
+          disabled={!canUseChain}
           variant="outline"
           className="w-full"
         >
@@ -438,7 +514,7 @@ export function UrvDemo() {
 
         <Button
           onClick={createRecord}
-          disabled={!connected || isProcessing || !isProgramReady}
+          disabled={!canUseChain}
           variant="outline"
           className="w-full"
         >
@@ -452,7 +528,7 @@ export function UrvDemo() {
 
         <Button
           onClick={postScoreUpdate}
-          disabled={!connected || isProcessing || !isProgramReady}
+          disabled={!canUseChain}
           className="w-full"
         >
           {isProcessing ? (
@@ -480,7 +556,7 @@ export function UrvDemo() {
               min={0}
               max={100}
               step={0.1}
-              disabled={!connected || isProcessing}
+              disabled={!chainActive || (!mockMode && !connected) || isProcessing}
             />
           </CardContent>
         </Card>
@@ -499,7 +575,7 @@ export function UrvDemo() {
               min={0}
               max={1}
               step={0.01}
-              disabled={!connected || isProcessing}
+              disabled={!chainActive || (!mockMode && !connected) || isProcessing}
             />
           </CardContent>
         </Card>
@@ -519,8 +595,8 @@ export function UrvDemo() {
               {status.type === 'pending' && <Loader2 className="h-5 w-5 animate-spin shrink-0" />}
               
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm">{status.message}</p>
-                {status.signature && (
+                <p className="font-medium text-sm break-words">{status.message}</p>
+                {status.signature && !status.signature.startsWith('mock_') && (
                   <a
                     href={getExplorerUrl(status.signature)}
                     target="_blank"
@@ -547,7 +623,7 @@ export function UrvDemo() {
           </p>
           <ul className="list-disc list-inside space-y-1">
             <li>Plaintext is never stored on-chain</li>
-            <li>Only hashes (commitments), scores, confidence, and chain links are recorded</li>
+            <li>Only hashes, scores, confidence, timestamps and chain links are recorded</li>
             <li>new_score_hash = sha256(prev_hash + features_hash + score_u32_LE + conf_bps_LE)</li>
           </ul>
         </AlertDescription>
