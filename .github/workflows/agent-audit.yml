@@ -1,0 +1,108 @@
+name: Agent Auditor — Scheduled Quality Gate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * 1-5'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    name: Continuous audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript audit
+        id: typecheck
+        continue-on-error: true
+        run: npx tsc --noEmit 2>&1 | tee typecheck.log
+
+      - name: ESLint audit
+        id: lint
+        continue-on-error: true
+        run: npx eslint src --ext .ts,.tsx 2>&1 | tee eslint.log
+
+      - name: Unit test audit
+        id: tests
+        continue-on-error: true
+        run: npm test -- --passWithNoTests 2>&1 | tee tests.log
+
+      - name: Build audit
+        id: build
+        continue-on-error: true
+        run: npm run build 2>&1 | tee build.log
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: placeholder_key_for_build_check
+
+      - name: Create audit summary
+        run: |
+          {
+            echo '# Agent Auditor Report'
+            echo ''
+            echo "Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo ''
+            echo '## Results'
+            echo ''
+            echo "- TypeScript: ${{ steps.typecheck.outcome }}"
+            echo "- ESLint: ${{ steps.lint.outcome }}"
+            echo "- Tests: ${{ steps.tests.outcome }}"
+            echo "- Build: ${{ steps.build.outcome }}"
+            echo ''
+            echo '## Logs'
+            echo ''
+            echo '<details><summary>TypeScript</summary>'
+            echo ''
+            echo '```text'
+            tail -n 120 typecheck.log || true
+            echo '```'
+            echo '</details>'
+            echo ''
+            echo '<details><summary>ESLint</summary>'
+            echo ''
+            echo '```text'
+            tail -n 120 eslint.log || true
+            echo '```'
+            echo '</details>'
+            echo ''
+            echo '<details><summary>Tests</summary>'
+            echo ''
+            echo '```text'
+            tail -n 120 tests.log || true
+            echo '```'
+            echo '</details>'
+            echo ''
+            echo '<details><summary>Build</summary>'
+            echo ''
+            echo '```text'
+            tail -n 120 build.log || true
+            echo '```'
+            echo '</details>'
+          } > agent-audit-report.md
+
+      - name: Open issue when audit fails
+        if: steps.typecheck.outcome == 'failure' || steps.lint.outcome == 'failure' || steps.tests.outcome == 'failure' || steps.build.outcome == 'failure'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: 'Agent Auditor: falha na auditoria contínua'
+          content-filepath: agent-audit-report.md
+          labels: bug, agent-auditor
+
+      - name: Fail workflow if audit failed
+        if: steps.typecheck.outcome == 'failure' || steps.lint.outcome == 'failure' || steps.tests.outcome == 'failure' || steps.build.outcome == 'failure'
+        run: exit 1
