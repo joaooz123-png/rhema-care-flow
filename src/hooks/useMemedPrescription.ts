@@ -15,8 +15,9 @@ export interface MemedPatient {
   nome: string;
   /** CPF apenas dígitos (obrigatório pela Memed; usar passaporte se ausente). */
   cpf?: string;
+  passaporte?: string;
   /** Aceita: "Masculino" | "Feminino" | "M" | "F" */
-  sexo?: 'Masculino' | 'Feminino' | 'M' | 'F';
+  sexo?: 'Masculino' | 'Feminino' | 'M' | 'F' | 'Não informado';
   /** dd/mm/YYYY */
   data_nascimento?: string;
   nome_social?: string;
@@ -39,7 +40,7 @@ export interface MemedHookReturn {
   loading: boolean;
   error: string | null;
   tokenAuto: boolean;
-  setPatient: (patient: MemedPatient) => void;
+  setPatient: (patient: MemedPatient) => Promise<boolean>;
   showPrescription: () => void;
   hidePrescription: () => void;
   setDoctorTokenManual: (token: string) => void;
@@ -196,31 +197,39 @@ export function useMemedPrescription(): MemedHookReturn {
     setTokenAuto(true);
   }, []);
 
-  const setPatient = useCallback((patient: MemedPatient) => {
+  const setPatient = useCallback(async (patient: MemedPatient) => {
     if (!window.MdHub) {
       console.warn('[Memed] MdHub não inicializado');
-      return;
+      return false;
     }
+    const payload = Object.fromEntries(Object.entries({
+      idExterno: patient.idExterno,
+      nome: patient.nome,
+      cpf: patient.cpf,
+      passaporte: patient.passaporte,
+      sexo: patient.sexo ?? 'Não informado',
+      data_nascimento: patient.data_nascimento,
+      nome_social: patient.nome_social,
+      telefone: patient.telefone,
+      email: patient.email,
+      raca: patient.raca,
+      peso: patient.peso,
+      altura: patient.altura,
+      endereco: patient.endereco,
+      cidade: patient.cidade,
+      nome_mae: patient.nome_mae,
+      dificuldade_locomocao: patient.dificuldade_locomocao ?? false,
+    }).filter(([, value]) => value !== undefined && value !== ''));
+
     // Comando oficial: setPaciente (PT-BR) com nomes de campos exatos da doc
-    window.MdHub.command
-      .send('plataforma.prescricao', 'setPaciente', {
-        idExterno: patient.idExterno,
-        nome: patient.nome,
-        cpf: patient.cpf,
-        sexo: patient.sexo,
-        data_nascimento: patient.data_nascimento,
-        nome_social: patient.nome_social,
-        telefone: patient.telefone,
-        email: patient.email,
-        raca: patient.raca,
-        peso: patient.peso,
-        altura: patient.altura,
-        endereco: patient.endereco,
-        cidade: patient.cidade,
-        nome_mae: patient.nome_mae,
-        dificuldade_locomocao: patient.dificuldade_locomocao ?? false,
-      })
-      ?.catch?.((e: unknown) => console.error('[Memed] setPaciente:', e));
+    try {
+      await window.MdHub.command.send('plataforma.prescricao', 'setPaciente', payload);
+      return true;
+    } catch (e) {
+      console.error('[Memed] setPaciente:', e);
+      setError('Falha ao configurar paciente na Memed');
+      return false;
+    }
   }, []);
 
   const showPrescription = useCallback(() => {
