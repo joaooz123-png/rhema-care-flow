@@ -2,6 +2,7 @@ import { clusterApiUrl, PublicKey } from '@solana/web3.js';
 
 export type UrvNetworkMode = 'off' | 'mock' | 'devnet' | 'mainnet-beta';
 export type UrvOracleMode = 'wallet' | 'backend' | 'hardware';
+export type UrvKeyPolicyMode = 'disabled' | 'optional' | 'required';
 
 const DEFAULT_DEVNET_PROGRAM_ID = 'URVPr1vacy11111111111111111111111111111111';
 
@@ -29,24 +30,30 @@ function readOracleMode(value: string | undefined): UrvOracleMode {
   return 'wallet';
 }
 
+function readKeyPolicyMode(value: string | undefined): UrvKeyPolicyMode {
+  if (value === 'disabled' || value === 'optional' || value === 'required') {
+    return value;
+  }
+  return 'disabled';
+}
+
 function resolveClusterUrl(mode: UrvNetworkMode, configured?: string): string {
   if (configured) return configured;
   if (mode === 'mainnet-beta') return clusterApiUrl('mainnet-beta');
   return clusterApiUrl('devnet');
 }
 
+const networkMode = readNetworkMode(import.meta.env.VITE_URV_NETWORK_MODE);
+
 export const URV_CHAIN_CONFIG = {
   /** Master switch. Keep false for apps that do not expose blockchain UX. */
   enabled: readBoolean(import.meta.env.VITE_URV_CHAIN_ENABLED, true),
 
   /** off = disabled, mock = local UX simulation, devnet = Solana devnet, mainnet-beta = production. */
-  networkMode: readNetworkMode(import.meta.env.VITE_URV_NETWORK_MODE),
+  networkMode,
 
   /** RPC endpoint. Defaults to Solana cluster API for selected network. */
-  clusterUrl: resolveClusterUrl(
-    readNetworkMode(import.meta.env.VITE_URV_NETWORK_MODE),
-    import.meta.env.VITE_URV_CLUSTER_URL,
-  ),
+  clusterUrl: resolveClusterUrl(networkMode, import.meta.env.VITE_URV_CLUSTER_URL),
 
   /** Canonical Anchor program ID. Override only after deploying the URV program. */
   programId: import.meta.env.VITE_URV_PROGRAM_ID || DEFAULT_DEVNET_PROGRAM_ID,
@@ -59,6 +66,24 @@ export const URV_CHAIN_CONFIG = {
 
   /** Must remain true for official UHS/Rhema derivatives. */
   canonicalMatrix: readBoolean(import.meta.env.VITE_URV_CANONICAL_MATRIX, true),
+
+  /**
+   * Future security layer: physical token containing one key fraction.
+   * Keep disabled during development so no unrecoverable key dependency blocks the app.
+   */
+  physicalKeyFractionMode: readKeyPolicyMode(import.meta.env.VITE_URV_PHYSICAL_KEY_FRACTION_MODE),
+
+  /**
+   * Future security layer: virtual token / app-side factor paired with the physical token.
+   * Keep disabled during development; enable optional/required only after UX and recovery flows exist.
+   */
+  virtualKeyFractionMode: readKeyPolicyMode(import.meta.env.VITE_URV_VIRTUAL_KEY_FRACTION_MODE),
+
+  /** Development escape hatch. Must remain true in mock/devnet until the split-key ceremony exists. */
+  allowDevelopmentWithoutKeyFractions: readBoolean(
+    import.meta.env.VITE_URV_ALLOW_DEV_WITHOUT_KEY_FRACTIONS,
+    true,
+  ),
 } as const;
 
 export function isUrvChainActive(): boolean {
@@ -79,6 +104,19 @@ export function getUrvProgramPublicKey(): PublicKey | null {
   } catch {
     return null;
   }
+}
+
+export function areUrvKeyFractionsRequired(): boolean {
+  return (
+    URV_CHAIN_CONFIG.physicalKeyFractionMode === 'required' ||
+    URV_CHAIN_CONFIG.virtualKeyFractionMode === 'required'
+  );
+}
+
+export function shouldBlockUrvForMissingKeyFractions(): boolean {
+  if (!areUrvKeyFractionsRequired()) return false;
+  if (URV_CHAIN_CONFIG.allowDevelopmentWithoutKeyFractions) return false;
+  return URV_CHAIN_CONFIG.networkMode === 'mainnet-beta';
 }
 
 export function getUrvReadinessChecks() {
@@ -113,6 +151,23 @@ export function getUrvReadinessChecks() {
       id: 'canonical',
       label: 'Matriz URV canonica preservada',
       ok: URV_CHAIN_CONFIG.canonicalMatrix,
+    },
+    {
+      id: 'physical-key-fraction',
+      label: `Fração-chave física: ${URV_CHAIN_CONFIG.physicalKeyFractionMode}`,
+      ok: URV_CHAIN_CONFIG.physicalKeyFractionMode !== 'required' || URV_CHAIN_CONFIG.allowDevelopmentWithoutKeyFractions,
+    },
+    {
+      id: 'virtual-key-fraction',
+      label: `Fração-chave virtual: ${URV_CHAIN_CONFIG.virtualKeyFractionMode}`,
+      ok: URV_CHAIN_CONFIG.virtualKeyFractionMode !== 'required' || URV_CHAIN_CONFIG.allowDevelopmentWithoutKeyFractions,
+    },
+    {
+      id: 'dev-without-key-fractions',
+      label: URV_CHAIN_CONFIG.allowDevelopmentWithoutKeyFractions
+        ? 'Desenvolvimento liberado sem frações-chave'
+        : 'Frações-chave podem bloquear ambientes restritos',
+      ok: URV_CHAIN_CONFIG.allowDevelopmentWithoutKeyFractions || URV_CHAIN_CONFIG.networkMode !== 'mainnet-beta',
     },
   ];
 }
