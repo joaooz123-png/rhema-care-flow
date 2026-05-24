@@ -11,6 +11,8 @@ import { AccountTypeProvider, useAccountType } from "@/contexts/AccountTypeConte
 import { useActivityTracker } from "@/hooks/useActivityTracker";
 import { useSiteTracker } from "@/hooks/useSiteTracker";
 
+const routerBasename = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "");
+
 // Activity tracker wrapper component
 function ActivityTracker({ children }: { children: React.ReactNode }) {
   useActivityTracker();
@@ -125,7 +127,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
      <TooltipProvider>
        <Toaster />
        <Sonner />
-        <BrowserRouter>
+        <BrowserRouter basename={routerBasename}>
           <AuthProvider>
             <AccountTypeProvider>
             <SpecialtyProvider>
