@@ -4,7 +4,16 @@ import App from "./App.tsx";
 import "./index.css";
 import { startLoopDetectorAuto } from "./lib/loopDetectorAutoStart";
 
-// Run the recurrence/loop detector continuously from app boot.
-startLoopDetectorAuto();
+try {
+  startLoopDetectorAuto();
+} catch (error) {
+  console.warn("Loop detector failed to start; continuing app boot.", error);
+}
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error("Root element #root not found");
+}
+
+createRoot(rootElement).render(<App />);
