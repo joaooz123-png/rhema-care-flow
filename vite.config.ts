@@ -5,6 +5,9 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // GitHub Pages serves project sites under /<repo>/.
+  // Keep local/Vercel/custom-domain builds at root.
+  base: process.env.GITHUB_PAGES === "true" ? "/rhema-care-flow/" : "/",
   server: {
     host: "::",
     port: 8080,
