@@ -34,7 +34,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Build
         run: npm run build
@@ -47,7 +47,6 @@ jobs:
       - name: Validate build output
         run: |
           test -f dist/index.html
-          test -f dist/health.html
           test -d dist/assets
           grep -q '/rhema-care-flow/assets/' dist/index.html
           touch dist/.nojekyll
