@@ -23,7 +23,7 @@ function loadState(): ManuscriptState {
     articleType: 'original',
     citationStyle: 'vancouver',
     mode: 'basic',
-    sections: createDefaultSections(),
+    sections: createDefaultSections('original'),
     activeSection: 'title',
     journalNotes: '',
     coverLetter: '',
@@ -78,6 +78,15 @@ export default function ArticleBuilder() {
     setState((prev) => ({ ...prev, activeSection: id }));
   }, []);
 
+  const handleArticleTypeChange = useCallback((articleType: ArticleType) => {
+    setState((prev) => ({
+      ...prev,
+      articleType,
+      sections: createDefaultSections(articleType),
+      activeSection: 'title',
+    }));
+  }, []);
+
   if (showPreview) {
     return (
       <div className="h-screen flex flex-col">
@@ -91,12 +100,6 @@ export default function ArticleBuilder() {
     );
   }
 
-  const outlineContent = (
-    <>
-      <ManuscriptOutline sections={visibleSections} activeSection={state.activeSection} onSelect={setActive} />
-    </>
-  );
-
   return (
     <div className="h-screen flex flex-col bg-white">
       <ManuscriptTopBar
@@ -104,7 +107,7 @@ export default function ArticleBuilder() {
         progress={progress}
         totalWords={totalWords}
         submissionReady={submissionReady}
-        onArticleTypeChange={(t) => setState((p) => ({ ...p, articleType: t }))}
+        onArticleTypeChange={handleArticleTypeChange}
         onCitationStyleChange={(s) => setState((p) => ({ ...p, citationStyle: s }))}
         onModeChange={(m) => setState((p) => ({ ...p, mode: m }))}
       />
