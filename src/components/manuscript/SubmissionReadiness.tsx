@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Circle, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Circle } from 'lucide-react';
 import type { ManuscriptSection } from './types';
 import { cn } from '@/lib/utils';
 
@@ -12,29 +12,50 @@ interface Props {
   sections: ManuscriptSection[];
 }
 
-export function SubmissionReadiness({ sections }: Props) {
-  const has = (id: string) => (sections.find((s) => s.id === id)?.content.trim().length ?? 0) > 10;
+function isFilled(section: ManuscriptSection): boolean {
+  return section.content.trim().length > 10;
+}
 
-  const checks: CheckItem[] = [
-    { label: 'Title completed', passed: has('title') },
-    { label: 'Authors listed', passed: has('authors') },
-    { label: 'Corresponding author', passed: has('corresponding') },
-    { label: 'Abstract completed', passed: has('abstract') },
-    { label: 'Keywords provided', passed: has('keywords') },
-    { label: 'Introduction written', passed: has('introduction') },
-    { label: 'Methods written', passed: has('methods') },
-    { label: 'Results presented', passed: has('results') },
-    { label: 'Discussion completed', passed: has('discussion') },
-    { label: 'Conclusion provided', passed: has('conclusion') },
-    { label: 'References listed', passed: has('references') },
-    { label: 'Ethics considered', passed: has('ethics') },
-    { label: 'Funding disclosed', passed: has('funding') },
-    { label: 'Conflicts declared', passed: has('conflicts') },
-  ];
+function labelFor(section: ManuscriptSection): string {
+  const labels: Record<string, string> = {
+    title: 'Title completed',
+    running_title: 'Running title completed',
+    authors: 'Authors listed',
+    affiliations: 'Affiliations listed',
+    corresponding: 'Corresponding author',
+    abstract: 'Abstract completed',
+    keywords: 'Keywords provided',
+    introduction: 'Introduction written',
+    methods: 'Methods written',
+    results: 'Results presented',
+    discussion: 'Discussion completed',
+    problem_statement: 'Problem statement written',
+    conceptual_framework: 'Framework described',
+    clinical_use_case: 'Clinical use case included',
+    implementation_considerations: 'Implementation considered',
+    limitations: 'Limitations discussed',
+    future_directions: 'Future directions provided',
+    conclusion: 'Conclusion provided',
+    references: 'References listed',
+    funding: 'Funding disclosed',
+    conflicts: 'Conflicts declared',
+    acknowledgments: 'Acknowledgments considered',
+  };
+
+  return labels[section.id] ?? section.title;
+}
+
+export function SubmissionReadiness({ sections }: Props) {
+  const requiredSections = sections.filter((section) => section.required);
+
+  const checks: CheckItem[] = requiredSections.map((section) => ({
+    label: labelFor(section),
+    passed: isFilled(section),
+  }));
 
   const passed = checks.filter((c) => c.passed).length;
   const total = checks.length;
-  const ready = passed >= 11; // at minimum all core sections
+  const ready = total > 0 && passed === total;
 
   return (
     <div className="p-3">
@@ -67,9 +88,6 @@ export function SubmissionReadiness({ sections }: Props) {
 }
 
 export function isSubmissionReady(sections: ManuscriptSection[]): boolean {
-  const coreIds = ['title', 'authors', 'corresponding', 'abstract', 'keywords', 'introduction', 'methods', 'results', 'discussion', 'conclusion', 'references'];
-  return coreIds.every((id) => {
-    const s = sections.find((sec) => sec.id === id);
-    return s && s.content.trim().length > 10;
-  });
+  const requiredSections = sections.filter((section) => section.required);
+  return requiredSections.length > 0 && requiredSections.every(isFilled);
 }
